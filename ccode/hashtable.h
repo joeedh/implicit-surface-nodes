@@ -17,7 +17,7 @@ typedef struct HashTable {
   HashEntry *table;
 } HashTable;
 
-#define HASHKEY(x, y, z) ((int)((x)*1024.0f*1024.0f + (y)*1024.0f + (z)))
+#define HASHKEY(x, y, z) ((int)((x)*512.0f*512.001f + (y)*512.001f + (z)*1.001))
 #define ABS(n) ((n) < 0 ? 0-(n) : (n))
 
 HashTable *ht_new();

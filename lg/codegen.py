@@ -67,7 +67,7 @@ class CodeGen:
           for i, o in enumerate(n.outputs):
             if o.name == "": continue #happens with phantom group node socket thingies
             id = sid(o)
-            print(o, "ID", id, "o.name", o.name, "||")
+            #print(o, "ID", id, "o.name", o.name, "||")
             outmap[id] = instance_inputs[o.name]
         continue
       elif n.bl_idname == "NodeGroupOutput":
@@ -78,7 +78,7 @@ class CodeGen:
       for o in n.outputs:
         outs[o.name] = o
       
-      print(outmap)
+      #print(outmap)
       for i in n.inputs:
         if i.name == "": #phantom node thingy
           continue
@@ -90,11 +90,11 @@ class CodeGen:
             if type(val) not in [int, float]:
               val = list(val)
         else:
-          print(i.name, i.links[0].from_socket.name)
+          #print(i.name, i.links[0].from_socket.name)
           val = outmap[sid(i.links[0].from_socket)]
           
         if val == None: 
-          print(":", len(i.links), "|", i.name)
+          #print(":", len(i.links), "|", i.name)
           raise RuntimeError()
           val = sym("<error!>")
         
@@ -117,8 +117,8 @@ class CodeGen:
           sock = n.inputs[0].links[0].from_socket
           id = sid(sock)
           rets.append(outmap[id]);
-          print(outmap[id])
-          print("ID", id)
+          #print(outmap[id])
+          #print("ID", id)
         
         #color
         if n.bl_idname == "ImplicitOutputNode" and len(n.inputs[1].links) > 0:
@@ -137,7 +137,7 @@ class CodeGen:
             if len(i.links) > 0:
               sock = i.links[0].from_socket
               id = sid(sock)
-              print(outmap, self.sortlist)
+              #print(outmap, self.sortlist)
               rets[i.name] = outmap[id];
             else:
               rets[i.name] = i.value if type(i.value) in [int, float] else list(i.value)

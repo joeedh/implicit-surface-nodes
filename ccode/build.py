@@ -7,7 +7,14 @@ import glob
 basepath = os.curdir
 sep = os.path.sep
 
+#release
+CFLAGS = " -c -funsigned-char -O3 "
+
+#debug
 CFLAGS = " -c -g -funsigned-char -O0 "
+
+CFLAGS += " -Iwinpthread "
+
 CC = "gcc "
 
 def buildcmd(file):
@@ -173,7 +180,7 @@ def build_files(deps, files):
   return 0
 
 def link_files(files):
-  cmd = "gcc -shared *.o -o libsurface.so"
+  cmd = "gcc -shared winpthread/libpthreadGC2.a *.o -o libsurface.so"
   ret = os.system(cmd)
   
   if ret != 0:

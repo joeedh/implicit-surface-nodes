@@ -1,6 +1,11 @@
 #ifndef _SURFACE_H
 #define _SURFACE_H
 
+#include "simd.h"
+
+typedef float v4sf __attribute__ ((vector_size (16)));
+typedef int   v4si __attribute__ ((vector_size (16)));
+
 /*
 */
 
@@ -60,7 +65,9 @@ static char *get_opcode_name(short opcode) {
 }
 #undef _
 
-#define MAXSTACK 1024*128
+#define MAXSTACK    1024*128
+#define MAXCONST    1024*8
+#define MAXREGISTER 8
 
 typedef struct SMOpCode {
   short code;
@@ -76,12 +83,12 @@ typedef struct FuncTable {
 } FuncTable;
 
 typedef struct StackMachine {
-  float stack[MAXSTACK];
-  float registers[8];
-  float constants[1024*32];
+  floatf stack[MAXSTACK] __attribute__ ((aligned (32)));
+  floatf *registers;
+  floatf constants[MAXCONST] __attribute__ ((aligned (32)));
   
   SMOpCode *codes;
-  int totcode;
+  int totcode, threadnr;
   
   char except_msg[512];
   int exception;
@@ -104,25 +111,29 @@ void sm_add_constant(StackMachine *sm, float constant);
 void sm_throw(StackMachine *sm, char *message);
 void sm_set_stackcur(StackMachine *sm, int stackcur);
 void sm_set_global(StackMachine *sm, int stackpos, float value);
-float sm_run(StackMachine *sm, SMOpCode *codes, int codelen);
-float sm_get_stackitem(StackMachine *sm, int stackpos);
+floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen);
+floatf sm_get_stackitem(StackMachine *sm, int stackpos);
 
 void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
-                   float min[3], float max[3], int ocdepth, int thread);
+                   float min[3], float max[3], int ocdepth, float matrix[4][4], 
+                   int thread);
 void sm_free_tess(float *vertout, int *triout);
-void sm_set_sampler_machine(StackMachine *sm, int thread);
-float sm_sampler(float x, float y, float z, int thread);
+void sm_set_sampler_machine(StackMachine *sm);
+floatf sm_sampler(floatf x, floatf y, floatf z, int thread);
+
+//v4sf sm_sampler_v4sf(v4sf x, v4sf y, v4sf z, int thread);
+void sm_print_stack(StackMachine *sm, int start, int end);
 
 //#define DEBUG_SM
-
+/*
 #ifdef DEBUG_SM
 #define SPOP(sm)        (printf("pop: %d\n", (int)sm->stackcur), sm->stack[--sm->stackcur])
 #define SPUSH(sm, val) (sm->stack[sm->stackcur++] = (val))
 #define SLOAD(sm, val) (printf("load: %d\n", (int)sm->stackcur), sm->stack[sm->stackcur-1] = (val))
-#else
+#else*/
 #define SPOP(sm)       (sm->stack[--sm->stackcur])
 #define SPUSH(sm, val) (sm->stack[sm->stackcur++] = (val))
 #define SLOAD(sm, val) (sm->stack[sm->stackcur-1] = (val))
-#endif
+//#endif
 
 #endif /* _SURFACE_H */

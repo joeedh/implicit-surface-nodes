@@ -377,7 +377,7 @@ class VectorReducNode(Node, ImplicitTree):
         ("POW", "Pow", "Sine"),
         ("ABS", "Abs", "Sine"),
         ("FLOOR", "Floor", "Sine"),
-        ("CEIL", "Floor", "Sine"),
+        ("CEIL", "Ceil", "Sine"),
         ("FRACT", "Fract", "Sine"),
         ("TRUNC", "Truncate", "Sine"),
         ("MUL", "Multiply", "Sine"),
@@ -386,6 +386,9 @@ class VectorReducNode(Node, ImplicitTree):
         ("DIV", "Divide", "Sine"),
         ("MIN", "Min", "Min"),
         ("MAX", "Max", "Max"),
+        ("TENT", "Tent", "Tent"),
+        ("SIN", "Sin", "Sin"),
+        ("COS", "Cos", "Cos"),
     ]
     
     mathFunc = bpy.props.EnumProperty(name="Function", description="Math Functions", items=math_funcs, default='ADD')
@@ -639,7 +642,8 @@ class NormalizeNode(Node, ImplicitTree):
     def gen_code(self, codegen, ins):
       v = coerce(ins["vector"], "vec");
       
-      l = sym.func("sqrt", v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+      #l = sym.func("sqrt", v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+      l = sym.func('length', v)
       
       return {
         "vector" : [v[0] / l, v[1] / l, v[2] / l]

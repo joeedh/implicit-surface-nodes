@@ -65,6 +65,7 @@ class ImplicitMakeGroup(bpy.types.Operator):
       selected = list(selected)
       
       ntree2 = bpy.data.node_groups.new('Group', 'ImplicitTreeType')
+      ntree2.use_fake_user = True
       
       nmap = {}
       sockmap = {}
@@ -196,6 +197,10 @@ class ImplicitMakeGroup(bpy.types.Operator):
                 continue;
               
               sid3 = utils.sockid(ntree.nodes, sock)
+              if sid3 not in group_outmap:
+                print("EEK 2!!!!!!!!!!!!!!!!!")
+                continue;
+                
               outsock = group_outmap[sid3][0]
               
               idx = list(ntree2.outputs).index(outsock)

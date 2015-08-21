@@ -13,7 +13,9 @@ static void *vec_resize(void *v, int typesize, int size) {
     mh--;
   }
   
-  //printf("vec resize...used1: %d\n", mh->used);
+  MEM_check(v);
+  
+  //printf("vec resize... newsize: %d, used1: %d, typesize: %d\n", size, mh->used, typesize);
   
   newmh = MEM_malloc(typesize*size);
 
@@ -41,7 +43,7 @@ static void *vec_growone(void *v, int typesize) {
     mh--;
   }
   
-  if (mh->used*typesize >= mh->size) {
+  if ((mh->used+1)*typesize >= mh->size) {
     mh = vec_resize(mh+1, typesize, (mh->used|5)*2);
     mh--;
   }
@@ -54,5 +56,5 @@ static void *vec_growone(void *v, int typesize) {
 
 #define V_COUNT(v)          (v) == NULL ? 0 : ((((MemHead*)v)-1)->used)
 #define V_APPEND(v, item) (((v) = vec_growone(v, sizeof(*(v)))), (v)[V_COUNT((v))-1] = item, (v))
-#define V_FREE(v)           (v  ? _MEM_free(v, __FILE__, __LINE__), v)
+#define V_FREE(v)           (v  ? _MEM_free(v, __FILE__, __LINE__) : v)
 #define V_RESIZE(v, sz)     (v  = vec_resize(v, sizeof(*v), sz), v)

@@ -1,4 +1,5 @@
 from math import *
+import math
 from .symbol import sym
 
 def fract(n):
@@ -15,6 +16,27 @@ class SymFunc:
   @staticmethod
   def get_dv(args, s):
     pass
+    
+#vector length
+class Length (SymFunc):
+  name = "length"
+  totarg = 3
+  
+  @staticmethod
+  def sm_eval(sm):
+    x = sm.pop()
+    y = sm.pop()
+    z = sm.pop()
+    
+    r = x*x+y*y+z*z
+    if (r != 0.0):
+      r = 1.0 / math.sqrt(r)
+    return r
+    
+  @staticmethod
+  def get_dv(args, s):
+    f = sym.func('sqrt', [args[0]*args[0] + args[1]*args[1] + args[2]*args[2]])
+    return f.df(s);
     
 def perlin(x, y, z):
   return 0.5
@@ -212,6 +234,43 @@ class Log(SymFunc):
   def get_dv(args, s):
     return args[0].df(s) / args[0];
 
+class Ceil(SymFunc):
+  name = "ceil"
+  totarg = 1
+  
+  @staticmethod
+  def sm_eval(sm):
+    sm.load(ceil(sm.pop()))
+  
+  @staticmethod
+  def get_dv(args, s):
+    return sym(0) #args[0].df(s) / args[0];
+
+class Floor(SymFunc):
+  name = "floor"
+  totarg = 1
+  
+  @staticmethod
+  def sm_eval(sm):
+    sm.load(floor(sm.pop()))
+  
+  @staticmethod
+  def get_dv(args, s):
+    return sym(0) #rgs[0].df(s) / args[0];
+
+class Trunc(SymFunc):
+  name = "trunc"
+  totarg = 1
+  
+  @staticmethod
+  def sm_eval(sm):
+    f = sm.pop()
+    sm.load(floor(abs(f))*(-1 if f < 0 else 1))
+  
+  @staticmethod
+  def get_dv(args, s):
+    return sym(0) #args[0].df(s) / args[0];
+
 sym_funcs = {}
 
 gs = dict(globals())
@@ -224,7 +283,7 @@ v = None
 
 for k in gs:
   v = gs[k]
-  print("K", k)
+  #print("K", k)
   
   if type(v) == type and issubclass(v, SymFunc) and v is not SymFunc:
     sym_funcs[v.name] = v

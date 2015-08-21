@@ -1,3 +1,4 @@
+#include "simd.h"
 #include "surface.h"
 #include "mesh.h"
 
@@ -5,6 +6,12 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+
+#ifndef EXPORT
+#define EXPORT
+#endif
+
+#include "inline.h"
 
 static float grads[][3] = {
   {
@@ -330,155 +337,312 @@ static float grads[][3] = {
 };
 
 #define GRAD_SIZE 64
+#define ABS(a) ((a) < 0 ? -(a) : (a))
 
-float *noisexyz(float x, float y, float z) {
-  int idx = (int)(3450.0*(x*475 + y*37.5 + z));
-  idx *= (idx>0)*2-1;
+typedef struct _Vec3 {
+  floatf x;
+  floatf y;
+  floatf z;
+} _Vec3;
 
-  idx = idx & (GRAD_SIZE-1);
+INLINE _Vec3 noisexyz(floatf x, floatf y, floatf z, int thread) {
+  intf idx = (intf)(3450.0*(x*475 + y*37.5 + z));
   
-  return grads[idx];
+  //idx *= -((idx>0)*2 - 1);
+#ifdef SIMD
+  //idx *= (idx<0)*2 + 1;
+  //idx[0] *= (idx[0]>0)*2-1;
+  //idx[1] *= (idx[1]>0)*2-1;
+  //idx[2] *= (idx[2]>0)*2-1;
+  //idx[3] *= (idx[3]>0)*2-1;
+  idx[0] = ABS(idx[0]);
+  idx[1] = ABS(idx[1]);
+  idx[2] = ABS(idx[2]);
+  idx[3] = ABS(idx[3]);
+  
+  idx[0] = idx[0] & (GRAD_SIZE-1);
+  idx[1] = idx[1] & (GRAD_SIZE-1);
+  idx[2] = idx[2] & (GRAD_SIZE-1);
+  idx[3] = idx[3] & (GRAD_SIZE-1);
+#else
+  //idx *= (idx>0)*2-1;
+  idx = idx < 0.0 ? 0 - idx : idx;
+  idx = idx & (GRAD_SIZE-1);
+#endif
+  //idx = idx & ((1<<30)-1);
+  
+#ifdef SIMD
+  {
+    //static floatf rets[8][128][3] __attribute__ ((aligned (16)));
+    //static int cur[8]={0,};
+    //floatf *ret = rets[thread][cur[thread]];
+    _Vec3 ret;
+    
+    //cur[thread] = (cur[thread]+1) & 7;
+    
+    ret.x[0] = grads[idx[0]][0];
+    ret.x[1] = grads[idx[1]][0];
+    ret.x[2] = grads[idx[2]][0];
+    ret.x[3] = grads[idx[3]][0];
+    
+    ret.y[0] = grads[idx[0]][1];
+    ret.y[1] = grads[idx[1]][1];
+    ret.y[2] = grads[idx[2]][1];
+    ret.y[3] = grads[idx[3]][1];
+
+    ret.z[0] = grads[idx[0]][2];
+    ret.z[1] = grads[idx[1]][2];
+    ret.z[2] = grads[idx[2]][2];
+    ret.z[3] = grads[idx[3]][2];
+    
+    return ret;
+  }
+#else
+  {
+  _Vec3 ret;
+
+  ret.x = grads[idx][0];
+  ret.y = grads[idx][1];
+  ret.z = grads[idx][2];
+  
+  return ret;
+  }
+#endif
 }
 
-float pnoise13(float u, float v, float w, float fu, float fv, float fz, float sz) {
-    float *g1 = noisexyz(fu, fv, fz);
-    float *g2 = noisexyz(fu, fv+sz, fz);
-    float *g3 = noisexyz(fu+sz, fv+sz, fz);
-    float *g4 = noisexyz(fu+sz, fv, fz);
+EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, floatf fz, floatf sz, int thread) {
+    _Vec3 g1 = noisexyz(fu, fv, fz, thread);
+    _Vec3 g2 = noisexyz(fu, fv+sz, fz, thread);
+    _Vec3 g3 = noisexyz(fu+sz, fv+sz, fz, thread);
+    _Vec3 g4 = noisexyz(fu+sz, fv, fz, thread);
 
-    fz += sz;
+    _Vec3 g5 = noisexyz(fu,    fv,    fz+sz, thread);
+    _Vec3 g6 = noisexyz(fu,    fv+sz, fz+sz, thread);
+    _Vec3 g7 = noisexyz(fu+sz, fv+sz, fz+sz, thread);
+    _Vec3 g8 = noisexyz(fu+sz, fv,    fz+sz, thread);
     
-    float *g5 = noisexyz(fu, fv, fz);
-    float *g6 = noisexyz(fu, fv+sz, fz);
-    float *g7 = noisexyz(fu+sz, fv+sz, fz);
-    float *g8 = noisexyz(fu+sz, fv, fz);
+    floatf vm1 = v-1.0f, um1 = u-1.0f, wm1 = w-1.0f;
     
-    float vm1 = v-1.0, um1 = u-1.0, wm1 = w-1.0;
+    floatf c1, c2, c3, c4, c5, c6, c7, c8;
+    floatf wm12, w2, v2, um12, vm12, u2;
     
-    float c1, c2, c3, c4, c5, c6, c7, c8;
+    /*
+    on factor;
+    off period;
     
-    c1 =   u*g1[0] +   v*g1[1] + w*g1[2];
-    c2 =   u*g2[0] + vm1*g2[1] + w*g2[2];
-    c3 = um1*g3[0] + vm1*g3[1] + w*g3[2];
-    c4 = um1*g4[0] +   v*g4[1] + w*g4[2];
+    c1 :=   u*g1x +   v*g1y + w*g1z;
+    c2 :=   u*g2x + vm1*g2y + w*g2z;
+    c3 := um1*g3x + vm1*g3y + w*g3z;
+    c4 := um1*g4x +   v*g4y + w*g4z;
     
-    c5 =   u*g5[0] +   v*g5[1] + wm1*g5[2];
-    c6 =   u*g6[0] + vm1*g6[1] + wm1*g6[2];
-    c7 = um1*g7[0] + vm1*g7[1] + wm1*g7[2];
-    c8 = um1*g8[0] +   v*g8[1] + wm1*g8[2];
+    c5 :=   u*g5x +   v*g5y + wm1*g5z;
+    c6 :=   u*g6x + vm1*g6y + wm1*g6z;
+    c7 := um1*g7x + vm1*g7y + wm1*g7z;
+    c8 := um1*g8x +   v*g8y + wm1*g8z;
     
-    wm1 = w-1;
-    um1=u-1;
-    vm1=v-1;
+    wm1 := w-1;
+    um1 := u-1;
+    vm1 := v-1;
     
-    float wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, um12=um1*um1, vm12=vm1*vm1;
+    w2   := w*w; 
+    v2   := v*v;
+    u2   := u*u;
+    wm12 := wm1*wm1;
+    vm12 := vm1*vm1;
+    um12 := um1*um1;
+    
+    on fort;
+    
+    f := ((((2*w+1)*wm12*c3-(2*w-3)*c7*w2)*(2*v-3)*v2-((2*w+
+      1)*wm12*c4-(2*w-3)*c8*w2)*(2*v+1)*(vm12))*(2*u-3)*u2
+      +1+(((2*w+1)*wm12*c1-(2*w-3)*c5*w2)*(2*v+1)*vm12-((2
+      *w+1)*wm12*c2-(2*w-3)*c6*w2)*(2*v-3)*v2)*(2*u+1)*um12)*0.5;
+    
+    */
+    
+    //*
+    c1 =   u*g1.x +   v*g1.y + w*g1.z;
+    c2 =   u*g2.x + vm1*g2.y + w*g2.z;
+    c3 = um1*g3.x + vm1*g3.y + w*g3.z;
+    c4 = um1*g4.x +   v*g4.y + w*g4.z;
+    
+    c5 =   u*g5.x +   v*g5.y + wm1*g5.z;
+    c6 =   u*g6.x + vm1*g6.y + wm1*g6.z;
+    c7 = um1*g7.x + vm1*g7.y + wm1*g7.z;
+    c8 = um1*g8.x +   v*g8.y + wm1*g8.z;
+    
+    wm1=w-1.0f;
+    um1=u-1.0f;
+    vm1=v-1.0f;
+    
+    wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, um12=um1*um1, vm12=vm1*vm1;
     
     return ((((2*w+1)*wm12*c3-(2*w-3)*c7*w2)*(2*v-3)*v2-((2*w+
       1)*wm12*c4-(2*w-3)*c8*w2)*(2*v+1)*(vm12))*(2*u-3)*u2
       +1+(((2*w+1)*wm12*c1-(2*w-3)*c5*w2)*(2*v+1)*vm12-((2
       *w+1)*wm12*c2-(2*w-3)*c6*w2)*(2*v-3)*v2)*(2*u+1)*um12)*0.5;
+    //*/
+/*
+    wm1=w-1;
+    um1=u-1;
+    vm1=v-1;
+    
+    wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, um12=um1*um1, vm12=vm1*vm1;
+#define g1x g1[0]
+#define g1y g1[1]
+#define g1z g1[2]
+
+#define g2x g2[0]
+#define g2y g2[1]
+#define g2z g2[2]
+
+#define g3x g3[0]
+#define g3y g3[1]
+#define g3z g3[2]
+
+#define g4x g4[0]
+#define g4y g4[1]
+#define g4z g4[2]
+
+#define g5x g5[0]
+#define g5y g5[1]
+#define g5z g5[2]
+
+#define g6x g6[0]
+#define g6y g6[1]
+#define g6z g6[2]
+
+#define g7x g7[0]
+#define g7y g7[1]
+#define g7z g7[2]
+
+#define g8x g8[0]
+#define g8y g8[1]
+#define g8z g8[2]
+
+  return ((((wm1*g6z+g6x*u+vm1*g6y)*(2*w-3)*w2-(g2x*u+g2z*w+(v
+        -1)*g2y)*(2*w+1)*wm12)*(2*v-3)*v2-((g5x*u+g5y*v+wm1*
+        g5z)*(2*w-3)*w2-(2*w+1)*wm12*c1)*(2*v+1)*vm12)*(2*u+
+        1)*um12+1+(((vm1*g3y+g3z*w+um1*g3x)*(2*w+1)*wm12-(
+        vm1*g7y+wm1*g7z+um1*g7x)*(2*w-3)*w2)*(2*v-3)*v2+(((w
+        -1)*g8z+g8y*v+um1*g8x)*(2*w-3)*w2-(g4y*v+g4z*w+um1*g4x)*
+        (2*w+1)*wm12)*(2*v+1)*vm12)*(2*u-3)*u2)*0.5;
+//*/
 }
 
-float pnoise13_dv(float dv[3], float u, float v, float w, float fu, float fv, float fz, float sz) {
-    float *g1 = noisexyz(fu*sz, fv*sz, fz*sz);
-    float *g2 = noisexyz(fu*sz, (fv+1.0)*sz, fz*sz);
-    float *g3 = noisexyz((fu+1.0)*sz, (fv+1.0)*sz, fz*sz);
-    float *g4 = noisexyz((fu+1.0)*sz, fv*sz, fz*sz);
+EXPORT floatf pnoise13_dv(floatf dv[3], floatf u, floatf v, floatf w, floatf fu, floatf fv, floatf fz, floatf sz, int thread) {
+    _Vec3 g1 = noisexyz(fu*sz, fv*sz, fz*sz, thread);
+    _Vec3 g2 = noisexyz(fu*sz, (fv+1.0)*sz, fz*sz, thread);
+    _Vec3 g3 = noisexyz((fu+1.0)*sz, (fv+1.0)*sz, fz*sz, thread);
+    _Vec3 g4 = noisexyz((fu+1.0)*sz, fv*sz, fz*sz, thread);
 
-    fz += 1.0;
+    fz += 1.0f;
     
-    float *g5 = noisexyz(fu*sz, fv*sz, fz*sz);
-    float *g6 = noisexyz(fu*sz, (fv+1.0)*sz, fz*sz);
-    float *g7 = noisexyz((fu+1.0)*sz, (fv+1.0)*sz, fz*sz);
-    float *g8 = noisexyz((fu+1.0)*sz, fv*sz, fz*sz);
+    _Vec3 g5 = noisexyz(fu*sz, fv*sz, fz*sz, thread);
+    _Vec3 g6 = noisexyz(fu*sz, (fv+1.0)*sz, fz*sz, thread);
+    _Vec3 g7 = noisexyz((fu+1.0)*sz, (fv+1.0)*sz, fz*sz, thread);
+    _Vec3 g8 = noisexyz((fu+1.0)*sz, fv*sz, fz*sz, thread);
 
-    float u2=u*u, v2=v*v, w2=w*w;
+    floatf u2=u*u, v2=v*v, w2=w*w;
 
-    float ans3=-((g1[2]-g5[2]-(g5[2]-g6[2])*(2.0*v-3.0)*v2+(g1[2]-g2[2])*(2.0*v-3.0)*v2-(
-            g5[2]-g8[2]+(g7[2]-g8[2])*(2.0*v-3.0)*v2+(g5[2]-g6[2])*(2.0*v-3.0)*v2)*(2.0*u-3.0)
-            *u2+(g1[2]-g4[2]+(g3[2]-g4[2])*(2.0*v-3.0)*v2+(g1[2]-g2[2])*(2.0*v-3.0)*v2)*
-            (2.0*u-3.0)*u2)*(2.0*w-3.0)*w2+(g1[2]-g4[2]+(g3[2]-g4[2])*(2.0*v-3.0)*v2+(
-            g1[2]-g2[2])*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2+(g1[2]-g2[2])*(2.0*v-3.0)*v2+g1[2]
+    floatf ans3=-((g1.z-g5.z-(g5.z-g6.z)*(2.0*v-3.0)*v2+(g1.z-g2.z)*(2.0*v-3.0)*v2-(
+            g5.z-g8.z+(g7.z-g8.z)*(2.0*v-3.0)*v2+(g5.z-g6.z)*(2.0*v-3.0)*v2)*(2.0*u-3.0)
+            *u2+(g1.z-g4.z+(g3.z-g4.z)*(2.0*v-3.0)*v2+(g1.z-g2.z)*(2.0*v-3.0)*v2)*
+            (2.0*u-3.0)*u2)*(2.0*w-3.0)*w2+(g1.z-g4.z+(g3.z-g4.z)*(2.0*v-3.0)*v2+(
+            g1.z-g2.z)*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2+(g1.z-g2.z)*(2.0*v-3.0)*v2+g1.z
             );
-    float ans2=6.0*(g5[0]*u+g5[1]*v-g1[2]*w-g1[1]*v-g1[0]*u+(w-1.0)*g5[2]+(g5[1]*v-g6[0]*u+
-            g5[0]*u-(v-1.0)*g6[1]+(g5[2]-g6[2])*(w-1.0))*(2.0*v-3.0)*v2+(g2[0]*u+g2[2]*w-g1[2]
-            *w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(2.0*v-3.0)*v2-((u-1.0)*g8[0]-g5[0]*u-(g5[2]-
-            g8[2])*(w-1.0)-(g5[1]-g8[1])*v-((v-1.0)*g7[1]-g8[1]*v+(g7[2]-g8[2])*(w-1.0)+(g7[0]-
-            g8[0])*(u-1.0))*(2.0*v-3.0)*v2-(g5[1]*v-g6[0]*u+g5[0]*u-(v-1.0)*g6[1]+(g5[2]-g6[2]
-            )*(w-1.0))*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2+(g4[1]*v+g4[2]*w-g1[2]*w-g1[1]*v-
-            g1[0]*u+(u-1.0)*g4[0]+(g4[1]*v+g4[2]*w-g3[2]*w-(v-1.0)*g3[1]-(g3[0]-g4[0])*(u-1.0))*
-            (2.0*v-3.0)*v2+(g2[0]*u+g2[2]*w-g1[2]*w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(2.0*v-3.0)
+    floatf ans2=6.0*(g5.x*u+g5.y*v-g1.z*w-g1.y*v-g1.x*u+(w-1.0)*g5.z+(g5.y*v-g6.x*u+
+            g5.x*u-(v-1.0)*g6.y+(g5.z-g6.z)*(w-1.0))*(2.0*v-3.0)*v2+(g2.x*u+g2.z*w-g1.z
+            *w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(2.0*v-3.0)*v2-((u-1.0)*g8.x-g5.x*u-(g5.z-
+            g8.z)*(w-1.0)-(g5.y-g8.y)*v-((v-1.0)*g7.y-g8.y*v+(g7.z-g8.z)*(w-1.0)+(g7.x-
+            g8.x)*(u-1.0))*(2.0*v-3.0)*v2-(g5.y*v-g6.x*u+g5.x*u-(v-1.0)*g6.y+(g5.z-g6.z
+            )*(w-1.0))*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2+(g4.y*v+g4.z*w-g1.z*w-g1.y*v-
+            g1.x*u+(u-1.0)*g4.x+(g4.y*v+g4.z*w-g3.z*w-(v-1.0)*g3.y-(g3.x-g4.x)*(u-1.0))*
+            (2.0*v-3.0)*v2+(g2.x*u+g2.z*w-g1.z*w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(2.0*v-3.0)
             *v2)*(2.0*u-3.0)*u2)*(w-1.0)*w+ans3;
-    float ans1=-ans2;
-    dv[2] = ans1/2.0;
+    floatf ans1=-ans2;
+    dv[2] = ans1*0.5;
     
-    ans3=6.0*(g2[0]*u+g2[2]*w-g1[2]*w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(v-1.0)*v-((g1[1]-
-      g2[1])*(2.0*v-3.0)*v2+g1[1]);
+    ans3=6.0*(g2.x*u+g2.z*w-g1.z*w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(v-1.0)*v-((g1.y-
+      g2.y)*(2.0*v-3.0)*v2+g1.y);
       
-    ans2=(6.0*(g2[0]*u+g2[2]*w-g1[2]*w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(v-1.0)*v+6.0*(
-      g5[1]*v-g6[0]*u+g5[0]*u-(v-1.0)*g6[1]+(g5[2]-g6[2])*(w-1.0))*(v-1.0)*v-(g1[1]-g5[1]-
-      (g5[1]-g6[1])*(2.0*v-3.0)*v2+(g1[1]-g2[1])*(2.0*v-3.0)*v2)+(6.0*((v-1.0)*g7[1]-
-      g8[1]*v+(g7[2]-g8[2])*(w-1.0)+(g7[0]-g8[0])*(u-1.0))*(v-1.0)*v+g5[1]-g8[1]+(g7[1]-
-      g8[1])*(2.0*v-3.0)*v2+(g5[1]-g6[1])*(2.0*v-3.0)*v2+6.0*(g5[1]*v-g6[0]*u+g5[0]*u-
-      (v-1.0)*g6[1]+(g5[2]-g6[2])*(w-1.0))*(v-1.0)*v)*(2.0*u-3.0)*u2+(6.0*(g2[0]*u+g2[2]
-      *w-g1[2]*w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(v-1.0)*v+6.0*(g4[1]*v+g4[2]*w-g3[2]*w-(
-      v-1.0)*g3[1]-(g3[0]-g4[0])*(u-1.0))*(v-1.0)*v-(g1[1]-g4[1]+(g3[1]-g4[1])*(2.0*v-3.0)*v2
-      +(g1[1]-g2[1])*(2.0*v-3.0)*v2))*(2.0*u-3.0)*u2)*(2.0*w-3.0)*w2+(6.0*(
-      g2[0]*u+g2[2]*w-g1[2]*w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(v-1.0)*v+6.0*(g4[1]*v+g4[2]*
-      w-g3[2]*w-(v-1.0)*g3[1]-(g3[0]-g4[0])*(u-1.0))*(v-1.0)*v-(g1[1]-g4[1]+(g3[1]-g4[1])*
-      (2.0*v-3.0)*v2+(g1[1]-g2[1])*(2.0*v-3.0)*v2))*(2.0*u-3.0)*u2+ans3;
+    ans2=(6.0*(g2.x*u+g2.z*w-g1.z*w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(v-1.0)*v+6.0*(
+      g5.y*v-g6.x*u+g5.x*u-(v-1.0)*g6.y+(g5.z-g6.z)*(w-1.0))*(v-1.0)*v-(g1.y-g5.y-
+      (g5.y-g6.y)*(2.0*v-3.0)*v2+(g1.y-g2.y)*(2.0*v-3.0)*v2)+(6.0*((v-1.0)*g7.y-
+      g8.y*v+(g7.z-g8.z)*(w-1.0)+(g7.x-g8.x)*(u-1.0))*(v-1.0)*v+g5.y-g8.y+(g7.y-
+      g8.y)*(2.0*v-3.0)*v2+(g5.y-g6.y)*(2.0*v-3.0)*v2+6.0*(g5.y*v-g6.x*u+g5.x*u-
+      (v-1.0)*g6.y+(g5.z-g6.z)*(w-1.0))*(v-1.0)*v)*(2.0*u-3.0)*u2+(6.0*(g2.x*u+g2.z
+      *w-g1.z*w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(v-1.0)*v+6.0*(g4.y*v+g4.z*w-g3.z*w-(
+      v-1.0)*g3.y-(g3.x-g4.x)*(u-1.0))*(v-1.0)*v-(g1.y-g4.y+(g3.y-g4.y)*(2.0*v-3.0)*v2
+      +(g1.y-g2.y)*(2.0*v-3.0)*v2))*(2.0*u-3.0)*u2)*(2.0*w-3.0)*w2+(6.0*(
+      g2.x*u+g2.z*w-g1.z*w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(v-1.0)*v+6.0*(g4.y*v+g4.z*
+      w-g3.z*w-(v-1.0)*g3.y-(g3.x-g4.x)*(u-1.0))*(v-1.0)*v-(g1.y-g4.y+(g3.y-g4.y)*
+      (2.0*v-3.0)*v2+(g1.y-g2.y)*(2.0*v-3.0)*v2))*(2.0*u-3.0)*u2+ans3;
       
     ans1=-ans2;
-  dv[1] = ans1/2.0;
+  dv[1] = ans1*0.5;
 
-  ans3=-((g1[0]-g4[0]+(g3[0]-g4[0])*(2.0*v-3.0)*v2+(g1[0]-g2[0])*(2.0*v-3.0)*v2)*
-      (2.0*u-3.0)*u2+(g1[0]-g2[0])*(2.0*v-3.0)*v2+g1[0]);
+  ans3=-((g1.x-g4.x+(g3.x-g4.x)*(2.0*v-3.0)*v2+(g1.x-g2.x)*(2.0*v-3.0)*v2)*
+      (2.0*u-3.0)*u2+(g1.x-g2.x)*(2.0*v-3.0)*v2+g1.x);
       
-  ans2=(6.0*(g4[1]*v+g4[2]*w-g1[2]*w-g1[1]*v-g1[0]*u+(u-1.0)*g4[0]+(g4[1]*v+g4[2]*w-
-      g3[2]*w-(v-1.0)*g3[1]-(g3[0]-g4[0])*(u-1.0))*(2.0*v-3.0)*v2+(g2[0]*u+g2[2]*w-g1[2]
-      *w-g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(2.0*v-3.0)*v2)*(u-1.0)*u-(6.0*((u-1.0)*g8[0]-
-      g5[0]*u-(g5[2]-g8[2])*(w-1.0)-(g5[1]-g8[1])*v-((v-1.0)*g7[1]-g8[1]*v+(g7[2]-g8[2])*(
-      w-1.0)+(g7[0]-g8[0])*(u-1.0))*(2.0*v-3.0)*v2-(g5[1]*v-g6[0]*u+g5[0]*u-(v-1.0)*
-      g6[1]+(g5[2]-g6[2])*(w-1.0))*(2.0*v-3.0)*v2)*(u-1.0)*u+g1[0]-g5[0]-(g5[0]-g6[0])*(
-      2.0*v-3.0)*v2+(g1[0]-g2[0])*(2.0*v-3.0)*v2-(g5[0]-g8[0]+(g7[0]-g8[0])*(2.0*v-3.0)*
-      v2+(g5[0]-g6[0])*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2+(g1[0]-g4[0]+(g3[0]-g4[0])*(
-      2.0*v-3.0)*v2+(g1[0]-g2[0])*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2))*(2.0*w-3.0)*w2
-      +6.0*(g4[1]*v+g4[2]*w-g1[2]*w-g1[1]*v-g1[0]*u+(u-1.0)*g4[0]+(g4[1]*v+g4[2]*w-g3[2]*
-      w-(v-1.0)*g3[1]-(g3[0]-g4[0])*(u-1.0))*(2.0*v-3.0)*v2+(g2[0]*u+g2[2]*w-g1[2]*w-
-      g1[1]*v-g1[0]*u+(v-1.0)*g2[1])*(2.0*v-3.0)*v2)*(u-1.0)*u+ans3;
+  ans2=(6.0*(g4.y*v+g4.z*w-g1.z*w-g1.y*v-g1.x*u+(u-1.0)*g4.x+(g4.y*v+g4.z*w-
+      g3.z*w-(v-1.0)*g3.y-(g3.x-g4.x)*(u-1.0))*(2.0*v-3.0)*v2+(g2.x*u+g2.z*w-g1.z
+      *w-g1.y*v-g1.x*u+(v-1.0)*g2.y)*(2.0*v-3.0)*v2)*(u-1.0)*u-(6.0*((u-1.0)*g8.x-
+      g5.x*u-(g5.z-g8.z)*(w-1.0)-(g5.y-g8.y)*v-((v-1.0)*g7.y-g8.y*v+(g7.z-g8.z)*(
+      w-1.0)+(g7.x-g8.x)*(u-1.0))*(2.0*v-3.0)*v2-(g5.y*v-g6.x*u+g5.x*u-(v-1.0)*
+      g6.y+(g5.z-g6.z)*(w-1.0))*(2.0*v-3.0)*v2)*(u-1.0)*u+g1.x-g5.x-(g5.x-g6.x)*(
+      2.0*v-3.0)*v2+(g1.x-g2.x)*(2.0*v-3.0)*v2-(g5.x-g8.x+(g7.x-g8.x)*(2.0*v-3.0)*
+      v2+(g5.x-g6.x)*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2+(g1.x-g4.x+(g3.x-g4.x)*(
+      2.0*v-3.0)*v2+(g1.x-g2.x)*(2.0*v-3.0)*v2)*(2.0*u-3.0)*u2))*(2.0*w-3.0)*w2
+      +6.0*(g4.y*v+g4.z*w-g1.z*w-g1.y*v-g1.x*u+(u-1.0)*g4.x+(g4.y*v+g4.z*w-g3.z*
+      w-(v-1.0)*g3.y-(g3.x-g4.x)*(u-1.0))*(2.0*v-3.0)*v2+(g2.x*u+g2.z*w-g1.z*w-
+      g1.y*v-g1.x*u+(v-1.0)*g2.y)*(2.0*v-3.0)*v2)*(u-1.0)*u+ans3;
   ans1=-ans2;
-  dv[0]=ans1/2.0;
+  dv[0]=ans1*0.5;
 }
 
-void sm_perlin(StackMachine *sm) {
-  float x = SPOP(sm);
-  float y = SPOP(sm);
-  float z = SPOP(sm);
-  float sz=0.2, u = x/sz, v = y/sz, w=z/sz, fu=floor(u), fv=floor(v), fw=floor(w);
-  float f;
+EXPORT void sm_perlin(StackMachine *sm) {
+  floatf x = SPOP(sm);
+  floatf y = SPOP(sm);
+  floatf z = SPOP(sm);
+  
+#ifdef SIMD
+  floatf sz={0.2f, 0.2f, 0.2f, 0.2f};
+#else
+  floatf sz = 0.2f;
+#endif
+
+  floatf u = x/sz, v = y/sz, w=z/sz, fu=fast_floor(u), fv=fast_floor(v), fw=fast_floor(w);
+  floatf f;
   
   u -= fu; v -= fv; w -= fw;
 
-  f = pnoise13(u, v, w, fu*sz, fv*sz, fw*sz, sz);
+  f = pnoise13(u, v, w, fu*sz, fv*sz, fw*sz, sz, sm->threadnr);
   
   SLOAD(sm, f);
 }
 
-void sm_perlin_dv(StackMachine *sm) {
-  float x = SPOP(sm);
-  float y = SPOP(sm);
-  float z = SPOP(sm);
-  float dx = SPOP(sm);
-  float dy = SPOP(sm);
-  float dz = SPOP(sm);
-  float dv[3];
+EXPORT void sm_perlin_dv(StackMachine *sm) {
+  floatf x = SPOP(sm);
+  floatf y = SPOP(sm);
+  floatf z = SPOP(sm);
+  floatf dx = SPOP(sm);
+  floatf dy = SPOP(sm);
+  floatf dz = SPOP(sm);
+  floatf dv[3];
   
-  float sz=0.2, u = x/sz, v = y/sz, w=z/sz, fu=floor(u), fv=floor(v), fw=floor(w);
-  float f;
+#ifdef SIMD
+  floatf sz={0.2f, 0.2f, 0.2f, 0.2f};
+#else
+  floatf sz = 0.2f;
+#endif
+
+  floatf u = x/sz, v = y/sz, w=z/sz, fu=fast_floor(u), fv=fast_floor(v), fw=fast_floor(w);
+  floatf f;
   
   u -= fu; v -= fv; w -= fw;
 
-  pnoise13_dv(dv, u, v, w, fu*sz, fv*sz, fw*sz, sz);
+  pnoise13_dv(dv, u, v, w, fu*sz, fv*sz, fw*sz, sz, sm->threadnr);
   VECMULF(dv, 1.0/sz);
   
   f = dv[0]*dx + dv[1]*dy + dv[2]*dz;

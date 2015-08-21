@@ -14,14 +14,55 @@ def perlin(x, y, z):
 def perlin_dv(x, y, z, dx, dy, dz):
   return 0.0;
   
-def surfmesh(expr, outobj, min=None, max=None):
-  if min == None: min = Vector([-1, -1, -1])
-  if max == None: max = Vector([1, 1, 1])
+def surfmesh(expr, outobj, min1=None, max1=None):
+  if min1 == None: min1 = Vector([-1, -1, -1])
+  if max1 == None: max1 = Vector([1, 1, 1])
   
-  min = outobj.matrix_world * min
-  max = outobj.matrix_world * max
+  #"""
+  rs = [
+    Vector([min1[0], min1[1], min1[2]]),
+    Vector([min1[0], max1[1], min1[2]]),
+    Vector([max1[0], max1[1], min1[2]]),
+    Vector([max1[0], min1[1], min1[2]]),
+    Vector([min1[0], min1[1], max1[2]]),
+    Vector([min1[0], max1[1], max1[2]]),
+    Vector([max1[0], max1[1], max1[2]]),
+    Vector([max1[0], min1[1], max1[2]]),
+  ]
+  
+  min1 = outobj.matrix_world * min1
+  max1 = outobj.matrix_world * max1
+  
+  for i in range(len(rs)):
+    rs[i] = outobj.matrix_world * rs[i]
+    
+    for j in range(3):
+      min1[j] = min(min1[j], rs[i][j])
+      max1[j] = max(max1[j], rs[i][j])
+  #"""
+  
+  mat = (c_float*16)()
+  for i in range(4):
+    for j in range(4):
+      mat[j*4+i] = 0.0
+  for i in range(4):
+    mat[i*4+i] = 1
   
   loc = outobj.matrix_world * Vector()
+  loc, rot, scale = rotmat_inv = outobj.matrix_world.decompose()
+  
+  tmat = Matrix.Translation(loc)
+  tmat2 = Matrix(tmat)
+  tmat.invert()
+  
+  mat1 = Matrix(outobj.matrix_world)
+  #mat1 = rot.to_matrix();
+  #mat1 = mat1.to_4x4()
+  
+  mat1.invert()
+  #mat1 = Matrix()
+  #mat1 = mat1 * tmat2;
+  #mat1 = mat1 * tmat2;
   
   print("====generating shader bytecode=====")
   opcodes, constmap = expr.gen_opcodes(["_px", "_py", "_pz"])
@@ -31,11 +72,12 @@ def surfmesh(expr, outobj, min=None, max=None):
   _py = 0.2
   _pz = -4.0
   
-  pyret = expr.run_opcodes(["_px", "_py", "_pz"], [_px, _py, _pz])
+  #pyret = expr.run_opcodes(["_px", "_py", "_pz"], [_px, _py, _pz])
   
-  print("sm.run ret: ", sm.run([-1, 0.2, -4.0]))
-  print("stack: ", sm._get_stack(16), "\n")
-  print("expr: ", str(expr))
+  #print("sm.run ret: ", sm.run([-1, 0.2, -4.0]))
+  #print("stack: ", sm._get_stack(16), "\n")
+  
+  #print("expr: ", str(expr))
   """
   try:
     print("EVAL RET:", eval(str(expr)))
@@ -43,16 +85,16 @@ def surfmesh(expr, outobj, min=None, max=None):
     print("EVAL RET: nan")
   """
   
-  print("pymachine ret:", pyret.stack[pyret.stackcur-1])
-  print("stack: ", pyret.stack[:16])
+  #print("pymachine ret:", pyret.stack[pyret.stackcur-1])
+  #print("stack: ", pyret.stack[:16])
   
   _min = (c_float*3)()
   _max = (c_float*3)()
   
   for i in range(3):
-    _min[i] = min[i]
-    _max[i] = max[i]
-  min = _min; max = _max;
+    _min[i] = min1[i]
+    _max[i] = max1[i]
+  min1 = _min; max1 = _max;
   
   verts = POINTER(c_float)();
   totvert = c_int(0);
@@ -60,12 +102,15 @@ def surfmesh(expr, outobj, min=None, max=None):
   tottri = c_int(0)
   
   _lib = c_code._lib
-  _lib.sm_set_sampler_machine(sm.sm, c_int(0));
+  _lib.sm_set_sampler_machine(sm.sm);
   
   #void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
   #                   float min[3], float max[3], int ocdepth, int thread);
 
-  _lib.sm_tessellate(byref(verts), byref(totvert), byref(tris), byref(tottri), min, max, c_int(5), c_int(0));
+  _lib.sm_tessellate(byref(verts), byref(totvert), byref(tris), byref(tottri), 
+                     min1, max1, c_int(7), mat, c_int(0));
+  
+  #return#XXX
   
   print("\n\n")
   print("finished tessellating; totvert:", totvert.value, "tottri:", tottri.value)
@@ -75,7 +120,9 @@ def surfmesh(expr, outobj, min=None, max=None):
   bm = bmesh.new()
   vs = []
   for i in range(totvert.value):
-    v = bm.verts.new([verts[i*3]-loc[0], verts[i*3+1]-loc[1], verts[i*3+2]-loc[2]])
+    co = Vector([verts[i*3], verts[i*3+1], verts[i*3+2]])
+    co = mat1 * co
+    v = bm.verts.new(co)
     vs.append(v)
   
   bm.verts.index_update()
@@ -99,7 +146,8 @@ def surfmesh(expr, outobj, min=None, max=None):
     v1 = vs[v1]; v2 = vs[v2]; v3 = vs[v3]
     #print(v1, v2, v3)
     try:
-      bm.faces.new([v1, v2, v3])
+      f = bm.faces.new([v1, v2, v3])
+      f.smooth = True
     except ValueError:
       pass
   

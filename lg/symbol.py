@@ -94,7 +94,7 @@ class StackMachine:
     
   def ABS_STK_TO_REG(self, arg1, arg2, arg3):
     loc = arg1 | arg2 << 16;
-    print(arg1, arg2, "|", arg3)
+    #print(arg1, arg2, "|", arg3)
     self.registers[arg3] = self.stack[loc];
     
   def STK_TO_REG(self, arg1, arg2, arg3):
@@ -127,7 +127,7 @@ class StackMachine:
       print(":", cur-self.stackcur, sym_funcs[arg1].totarg)
       raise RuntimeError("Stack corruption while execution function callback " + arg1)
       
-    print("==", cur-self.stackcur, sym_funcs[arg1].totarg)
+    #print("==", cur-self.stackcur, sym_funcs[arg1].totarg)
   
   def PUSH_GLOBAL(self, arg1, arg2, arg3):
     loc = arg1 | arg2 << 16;
@@ -157,6 +157,9 @@ class sym (list):
   def __init__(self, name_or_val=None):
     list.__init__(self)
     
+    self.parent = None
+    self.vars = None
+    
     if (isinstance(name_or_val, sym)):
       s = name_or_val
       
@@ -165,7 +168,9 @@ class sym (list):
       self.op = s.op
       self.use_parens = s.use_parens
       self.funcname = s.funcname
-      
+      if s.vars != None:
+        self.vars = [[n[0].copy(), n[1].copy()] for n in s.vars]
+        
       for c in s:
         self.append(c.copy())
       return
@@ -188,6 +193,10 @@ class sym (list):
     self.op = None
     self.use_parens = True
   
+  def replace(self, a, b):
+    self[self.index(a)] = b
+    b.parent = self
+    
   def copy(self):
     ret = sym()
     
@@ -196,6 +205,8 @@ class sym (list):
     ret.op = self.op
     ret.use_parens = self.use_parens
     ret.funcname = self.funcname
+    if self.vars != None:
+      ret.vars = [[n[0].copy(), n[1].copy()] for n in self.vars]
     
     for c in self:
       ret.append(c.copy())
@@ -226,13 +237,21 @@ class sym (list):
     return sm.run(opcodes)
   
   def factor(self):
-    if not have_sympy:
-      return self
-    return symbol_factor.optimize(self)
+    if have_sympy:
+      expr = symbol_factor.optimize(self)
+    else:
+      expr = self
     
-  def gen_opcodes(self, globals):
+    return symbol_optimize.optimize(expr)
+    
+  def gen_opcodes(self, globals, consts=None, constmap=None, constcur=None):
     buf = []
     
+    if constcur == None:
+      constcur = [0]
+      consts = []
+      constmap = {}
+        
     def out(s):
       s = s.split(" ")
       
@@ -248,9 +267,11 @@ class sym (list):
       #print(str(s[0]) + " " + str(s[1]) + " " + str(s[2]) + " " + str(s[3]))
       buf.append(s)
     
-    consts = []
-    constmap = {}
-    constcur = [0]
+    if self.vars != None:
+      for v in self.vars:
+        buf += v[1].gen_opcodes(globals, consts, constmap, constcur)[0]
+        globals.append(v[0].name)
+        out("PUSH 7")
     
     def get_const(n):
       if n not in constmap:
@@ -438,7 +459,9 @@ class sym (list):
       ret.append(args[i])
     
     return ret
-    
+  
+  def __neg__(self):
+    return self.binop(-1, "*")
   def __add__(self, b):
     return self.binop(b, "+")
   def __radd__(self, b):
@@ -466,6 +489,9 @@ import imp
 imp.reload(symbol_funcs)
 
 from .symbol_funcs import sym_funcs
+from . import symbol_optimize
+
+imp.reload(symbol_optimize)
 
 if have_sympy:
   from . import symbol_factor

@@ -45,27 +45,23 @@ int testcodelen = sizeof(test_codes) / sizeof(*test_codes);
 int simple_test() {
   StackMachine *sm = sm_new();
   int i;
-  float f, x, y, z;
+  v4sf f, x={0.11,0.14,-0.24,-0.85}, y={0.711,0.223,-0.546, -7.661}, z={0.1, 0.2, -0.3, -0.4};
   
   sm_add_constant(sm, 0.5);
   sm_add_constant(sm, 1.0);
   sm_add_constant(sm, 0.0);
   sm_add_constant(sm, 2.0);
-  
-  x = 0.11;
-  y = 0.71;
-  z = 0.223;
-  
-  sm_set_global(sm, 0, x);
-  sm_set_global(sm, 1, y);
-  sm_set_global(sm, 2, z);
+ 
+  sm_set_global(sm, 0, x[0]);
+  sm_set_global(sm, 1, y[1]);
+  sm_set_global(sm, 2, z[2]);
   sm_set_stackcur(sm, 10);
   
   sm_add_opcodes(sm, test_codes, testcodelen);
   f = sm_run(sm, test_codes, testcodelen);
   
-  printf("RESULT: %f, should be: %f\n", f, MAX(MAX(x, y), z)-0.5);
-  printf("[");
+  //printf("RESULT: %f, should be: %f\n", f, MAX(MAX(x, y), z)-0.5);
+  /*printf("[");
   
   for (i=0; i<sm->stackcur+10; i++) {
     if (i > 0) {
@@ -73,7 +69,8 @@ int simple_test() {
     }
     printf("%.2f", sm->stack[i]);
   }
-  printf("]\n");
+  printf("]\n");*/
+  
 }
 
 int complicated_test() {
@@ -81,31 +78,33 @@ int complicated_test() {
   int i, totvert, tottri;
   float *verts;
   int *tris;
-  float f, x, y, z;
+  v4sf f, x={0.11,0.14,-0.24,-0.85}, y={0.711,0.223,-0.546, -7.661}, z={0.1, 0.2, -0.3, -0.4};
   float min[3] = {-1.0, -1.0, -1.0}, max[3] = {1.0, 1.0, 1.0};
+  float mat[4][4] = {
+    {1,0,0,0},
+    {0,1,0,0},
+    {0,0,1,0},
+    {0,0,0,1}
+  };
   
   sm_add_constant(sm, 0.5);
   sm_add_constant(sm, 1.0);
   sm_add_constant(sm, 0.0);
   sm_add_constant(sm, 2.0);
   
-  x = 0.11;
-  y = 0.71;
-  z = 0.223;
-  
-  sm_set_global(sm, 0, x);
-  sm_set_global(sm, 1, y);
-  sm_set_global(sm, 2, z);
+  sm_set_global(sm, 0, x[0]);
+  sm_set_global(sm, 1, y[0]);
+  sm_set_global(sm, 2, z[0]);
   sm_set_stackcur(sm, 10);
   
   sm_add_opcodes(sm, test_codes, testcodelen);
-  sm_set_sampler_machine(sm, 0);
+  sm_set_sampler_machine(sm);
   
-  f = sm_sampler(x, y, z, 0);
+  //f = sm_sampler(x, y, z, 0);
   
   //f = sm_run(sm, sm->codes, sm->totcode);
-  printf("RESULT: %f, should be: %f\n", f, MAX(MAX(x, y), z)-0.5);
-  printf("[");
+  //printf("RESULT: %f, should be: %f\n", f, MAX(MAX(x, y), z)-0.5);
+  /*printf("[");
   
   for (i=0; i<sm->stackcur+10; i++) {
     if (i > 0) {
@@ -113,15 +112,15 @@ int complicated_test() {
     }
     printf("%.2f", sm->stack[i]);
   }
-  printf("]\n");
+  printf("]\n");*/
   
   //void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
   //                  float min[3], float max[3], int ocdepth, int thread) {
-  sm_tessellate(&verts, &totvert, &tris, &tottri, min, max, 3, 0);
+  sm_tessellate(&verts, &totvert, &tris, &tottri, min, max, 3, mat, 0);
   printf("\ntotvert: %d, tottri: %d\n", totvert, tottri);
   printf("%p %p", verts, tris);
   
-  sm_free_tess(verts, tris);
+  //sm_free_tess(verts, tris);
 }
 
 int main(char **argv, int argc) {

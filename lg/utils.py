@@ -1,5 +1,28 @@
 import bpy, traceback
 
+class CmpListCompare:
+  def __init__(self, item, func):
+    self.item = item
+    self.func = func
+    
+  def __lt__(self, item):
+    return self.func(self.item, item.item) < 0
+    
+  def __gt__(self, item):
+    return self.func(self.item, item.item) > 0
+    
+  def __eq__(self, item):
+    return self.func(self.item, item.item) == 0
+   
+class CmpList (list):
+  def sort(self, callback):
+    list2 = []
+    for i in self:
+      list2.append(CmpListCompare(i, callback))
+    list2.sort()
+    
+    self[:] = [i.item for i in list2]
+    
 class Register:
   def register(self):
     pass
@@ -19,6 +42,8 @@ class CustomRegister (Register):
   
   def unregister(self):
     if not self.is_reg: return 
+    if self.unreg == None: return
+    
     self.unreg()
     self.is_reg = False
     

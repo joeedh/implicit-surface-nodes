@@ -9,8 +9,8 @@
 #include "hashtable.h"
 
 int hashsizes[] = {
-  /*2,*/ 5, 11, 19, 37, 67, 127, 223, 383, 653, 1117, 1901, 3251, 
-  5527, 9397, 15991, 27191, 46229, 78593, 133631, 227177, 38619,
+  /*2, 5, 11, 19, 37, 67, 127, 223, 383, 653, 1117, 1901, 3251, 
+  5527,*/ 9397, 15991, 27191, 46229, 78593, 133631, 227177, 38619,
   656587, 1116209, 1897561, 3225883, 5484019, 9322861, 15848867,
   26943089, 45803279, 77865577, 132371489, 225031553
 };
@@ -88,10 +88,12 @@ int ht_ensurevert(HashTable *ht, float vec[3]) {
   return ht->vert_idgen++;
 }
 
+#define VROUND(x) (((int)((x)*10000.0f))*(1.0f/10000.0f))
+
 int ht_insert(HashTable *ht, float vec[3], unsigned int value, int *value_out) {
   HashEntry *en=NULL;
   int hash=0;
-  int key = HASHKEY(vec[0], vec[1], vec[2]);
+  int key = HASHKEY(VROUND(vec[0]), VROUND(vec[1]), VROUND(vec[2]));
   int off = 0, size, basehash;
   
   //key = key == 0 ? 1 : key;

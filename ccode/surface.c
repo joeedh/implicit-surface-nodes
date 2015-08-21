@@ -1,15 +1,17 @@
+#include "thread.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "surface.h"
+#include "inline_stack_loop.h"
 #include "funcs.h"
 
 #include "Alloc.h"
 #include "mesh.h"
-
-#define MAXTHREAD 1
+#include "timer.h"
 
 static FuncTable func_table[] = {
   {sm_sqrt, "sqrt", 1},
@@ -29,6 +31,8 @@ static FuncTable func_table[] = {
   {sm_fract, "fract", 1},
   {sm_perlin, "perlin", 3},
   {sm_perlin_dv, "perlin_dv", 6},
+  {sm_length, "length", 3},
+  {sm_trunc, "trunc", 1}
 };
 
 FuncTable *sm_get_functable(int *sizeout) {
@@ -38,18 +42,27 @@ FuncTable *sm_get_functable(int *sizeout) {
 }
 
 StackMachine *sm_new() {
-  StackMachine *sm = MEM_malloc(sizeof(StackMachine));
+  static StackMachine rets[512];
+  static int cur=0;
+  
+  StackMachine *sm = rets + cur;
+  cur = (cur + 1) & 511;
+
+  //seriously, I can't allocate on the heap here? mean!
+  //StackMachine *sm = MEM_malloc(sizeof(StackMachine));
+  
   memset(sm, 0, sizeof(*sm));
   
   sm->func_table = func_table;
   sm->totfunc = sizeof(func_table) / sizeof(*func_table);
+  return sm;
 }
 
 void sm_free(StackMachine *sm) {
   if (sm->codes)
     MEM_free(sm->codes);
   
-  MEM_free(sm);
+  //MEM_free(sm);
 }
 
 //codes is copied to its own buffer
@@ -61,7 +74,15 @@ void sm_add_opcodes(StackMachine *sm, SMOpCode *codes, int totcode) {
 }
 
 void sm_add_constant(StackMachine *sm, float constant) {
-  sm->constants[sm->totconstant++] = constant;
+#ifdef SIMD
+  sm->constants[sm->totconstant][0] = constant;
+  sm->constants[sm->totconstant][1] = constant;
+  sm->constants[sm->totconstant][2] = constant;
+  sm->constants[sm->totconstant][3] = constant;
+#else
+  sm->constants[sm->totconstant] = constant;
+#endif
+  sm->totconstant++;
 }
 
 void sm_throw(StackMachine *sm, char *message) {
@@ -74,26 +95,81 @@ void sm_throw(StackMachine *sm, char *message) {
   sm->exception = 1;
 }
 
-float sm_get_stackitem(StackMachine *sm, int stackpos) {
+floatf sm_get_stackitem(StackMachine *sm, int stackpos) {
   return sm->stack[stackpos];
-}
+}  
 
 void sm_set_stackcur(StackMachine *sm, int stackcur) {
   sm->stackcur = stackcur;
 }
 
 void sm_set_global(StackMachine *sm, int stackpos, float value) {
+#ifdef SIMD
+  sm->stack[stackpos][0] = value;
+  sm->stack[stackpos][1] = value;
+  sm->stack[stackpos][2] = value;
+  sm->stack[stackpos][3] = value;
+#else
   sm->stack[stackpos] = value;
+#endif
 }
 
 static StackMachine *sampler_machines[MAXTHREAD];
 
-void sm_set_sampler_machine(StackMachine *sm, int thread) {
-  sampler_machines[thread] = sm;
+void sm_print_stack(StackMachine *sm, int start, int end) {
+  int i;
+  
+  printf("[");
+  for (i=start; i<=end; i++) {
+    if (i > start) {
+      printf(", ");
+    }
+    
+    #ifdef SIMD
+    printf("{%.3f, %.3f, %.3f, %.3f}", sm->stack[i][0], sm->stack[i][1], sm->stack[i][2], sm->stack[i][3]);
+    #else
+    printf("%.4f", sm->stack[i]);
+    #endif
+  }
+  
+  printf("]\n");
 }
 
-float sm_sampler(float x, float y, float z, int thread) {
+void sm_set_sampler_machine(StackMachine *sm) {
+  int i;
+  
+  sampler_machines[0] = sm;
+  sm->threadnr = 0;
+  
+  for (i=1; i<MAXTHREAD; i++) {
+    StackMachine *sm2;
+    
+    sm2 = sm_new();
+    memcpy(sm2, sm, sizeof(*sm2));
+    
+    sm2->codes = MEM_copyalloc(sm->codes, sizeof(SMOpCode)*sm->totcode);
+    sm2->registers = NULL;
+    sm2->totcode = sm->totcode;
+    sm2->threadnr = i;
+    
+    sampler_machines[i] = sm2;
+  }
+}
+
+void sm_destroy_thread_samplers() {
+  StackMachine *sm;
+  int i;
+  
+  for (i=1; i<MAXTHREAD; i++) {
+    sm_free(sampler_machines[i]);
+    sampler_machines[i] = NULL;
+  }
+}
+
+floatf sm_sampler(floatf x, floatf y, floatf z, int thread) {
     StackMachine *sm = sampler_machines[thread];
+    
+    //printf("stack: %p %i\n", sm->stack, (int)(((unsigned long long)sm->stack) % 32));
     
     sm->stack[0] = x;
     sm->stack[1] = y;
@@ -101,21 +177,45 @@ float sm_sampler(float x, float y, float z, int thread) {
     
     sm->stackcur = 20;
     
-    return sm_run(sm, sm->codes, sm->totcode);
+    return sm_run_inline(sm, sm->codes, sm->totcode);
+    //return sm_run(sm, sm->codes, sm->totcode);
 }
 
+/*
+v4sf sm_sampler_v4sf(v4sf x, v4sf y, v4sf z, int thread) {
+  v4sf ret = {sm_sampler(x[0], y[0], z[0], thread),
+              sm_sampler(x[1], y[1], z[1], thread),
+              sm_sampler(x[2], y[2], z[2], thread),
+              sm_sampler(x[3], y[3], z[3], thread)
+             };
+             
+  return ret;
+}
+*/
+
 void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
-                    float min[3], float max[3], int ocdepth, int thread) {
-  polygonize(sm_sampler, vertout, totvert, triout, tottri, min, max, ocdepth, thread);
+                    float min[3], float max[3], int ocdepth, float matrix[4][4], int thread) {
+  double start_time = getPerformanceTime();
+  
+  threaded_polygonize(sm_sampler, vertout, totvert, triout, tottri, min, max, ocdepth, matrix, thread);
+  
+  start_time = getPerformanceTime() - start_time;
+  printf("  time taken: %.4lfms\n", start_time);
+  
+  //sm_print_stack(sampler_machines[thread], 0, 33);
 }
 
 void sm_free_tess(float *vertout, int *triout) {
   MEM_free(vertout);
   MEM_free(triout);
-}
+} 
 
-float sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
+floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
+#if 0
+  float registers[9]={0}; //hrm, wonder if compiler will put these in actual registers for me. . .
   SMOpCode *curcode = codes;
+  
+  sm->registers = registers;
   
   #ifdef DEBUG_SM
   printf("\n\nStarting run: %i %p %p\n", codelen, curcode, sm);
@@ -240,5 +340,8 @@ float sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
     curcode++;
   }
   
+  sm->registers = NULL;
   return sm->stack[sm->stackcur-1];
+#endif 
+  return; //0.0;
 }

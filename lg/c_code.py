@@ -57,7 +57,7 @@ def open_library():
   _lib.sm_get_functable.restype = POINTER(FuncTableItem)
   _lib.sm_new.restype = POINTER(c_int);
   _lib.sm_get_stackitem.restype = c_float;
-  _lib.sm_run.restype = c_float;
+  #_lib.sm_run.restype = c_float;
   
 open_library()
 
@@ -89,7 +89,7 @@ def build_funcmap():
   size = c_int()
   funcs = _lib.sm_get_functable(byref(size))
   
-  print("querying function table", size, funcs)
+  #print("querying function table", size, funcs)
   
   for i in range(size.value):
     name = str(funcs[i].name, "latin-1")
@@ -102,9 +102,11 @@ class StackMachine:
     self.oplen = len(opcodes)
   
   def __del__(self):
-    _lib.sm_free(self.sm)
+    #_lib.sm_free(self.sm)
+    pass
     
   def _get_stack(self, count=16):
+    raise RuntimeError()
     global _lib
     
     ret = []
@@ -116,6 +118,8 @@ class StackMachine:
     
   def run(self, globals):
     global _lib
+    raise RuntimeError()
+    
     for i, g in enumerate(globals):
       _lib.sm_set_global(self.sm, c_int(i), c_float(g))
     
@@ -130,7 +134,7 @@ def create_stackmachine(opcodes, consts):
   #SMOpCode
   sm = _lib.sm_new();
   for f in consts:
-    print(f, sm)
+    #print(f, sm)
     _lib.sm_add_constant(sm, c_float(f))
   
   codes = (SMOpCode*len(opcodes))()

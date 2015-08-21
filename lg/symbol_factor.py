@@ -70,11 +70,10 @@ def optimize(expr):
   _pz = _sym('_pz')
   s = str(sexpr)
   
-  print("\n\nSEXPR\n", sexpr, "|||\n\n")
-  
-  print(type(eval(s)), eval(s), "\n\n\n")
+  #print("\n\nSEXPR\n", sexpr, "|||\n\n")
+  #print(type(eval(s)), eval(s), "\n\n\n")
   expr = eval(s)
-  
+ 
   return expr
   
 from .symbol import sym as _sym
@@ -84,7 +83,7 @@ def gen_func_code():
   code = ""
   for k in sym_funcs:
     f = sym_funcs[k]
-    print(f)
+    #print(f)
     if f == None: continue
     
     s = "def " + k + "("

@@ -14,7 +14,11 @@ def perlin(x, y, z):
 def perlin_dv(x, y, z, dx, dy, dz):
   return 0.0;
   
-def surfmesh(expr, outobj, min1=None, max1=None):
+def surfmesh(expr, outobj, outmatrix=None, use_local=False, min1=None, max1=None):
+  if outmatrix is None:
+    outmatrix = Matrix()
+    outmatrix.resize_4x4()
+    
   if min1 == None: min1 = Vector([-1, -1, -1])
   if max1 == None: max1 = Vector([1, 1, 1])
   
@@ -30,24 +34,71 @@ def surfmesh(expr, outobj, min1=None, max1=None):
     Vector([max1[0], min1[1], max1[2]]),
   ]
   
-  min1 = outobj.matrix_world * min1
-  max1 = outobj.matrix_world * max1
-  
-  for i in range(len(rs)):
-    rs[i] = outobj.matrix_world * rs[i]
+  #local coordinates?
+  if use_local:
+    """
+    min1 = outmatrix * min1
+    max1 = outmatrix * max1
     
+    for i in range(len(rs)):
+      rs[i] = outobj.matrix_world * rs[i]
+      
+      for j in range(3):
+        min1[j] = min(min1[j], rs[i][j])
+        max1[j] = max(max1[j], rs[i][j])
+        
+    size = (max1-min1);
     for j in range(3):
-      min1[j] = min(min1[j], rs[i][j])
-      max1[j] = max(max1[j], rs[i][j])
+      min1[j] = -size[j]*0.55
+      max1[j] =  size[j]*0.55
+    
+    print(min1, max1)
+    #raise "sdf"
+    #"""
+  else:
+    min1 = outmatrix * min1
+    max1 = outmatrix * max1
+    
+    for i in range(len(rs)):
+      rs[i] = outobj.matrix_world * rs[i]
+      
+      for j in range(3):
+        min1[j] = min(min1[j], rs[i][j])
+        max1[j] = max(max1[j], rs[i][j])
   #"""
   
-  mat = (c_float*16)()
-  for i in range(4):
-    for j in range(4):
-      mat[j*4+i] = 0.0
-  for i in range(4):
-    mat[i*4+i] = 1
-  
+  if not use_local:
+    #identity matrix
+    mat = (c_float*16)()
+    for i in range(4):
+      for j in range(4):
+        mat[j*4+i] = 0.0
+    for i in range(4):
+      mat[i*4+i] = 1
+  else:
+    scale = outmatrix.decompose()[2]
+    smat = Matrix.Scale(scale[0], 4, [1, 0, 0])
+    smat = Matrix.Scale(scale[1], 4, [0, 1, 0])
+    smat = Matrix.Scale(scale[2], 4, [0, 0, 1])
+    
+    wmat = smat#Matrix() #outmatrix)
+    #print(wmat)
+    #wmat.invert()
+    #print(wmat)
+    #raise "sdf"
+    
+    #wmat = Matrix()
+    #wmat.resize_4x4()
+    
+    #wmat = Matrix.Translation(Vector([0,2,0]))
+    #wmat = wmat * Matrix.Scale(1.5, 4)
+    
+    #wmat.resize_4x4()
+    mat = (c_float*16)()
+    for i in range(4):
+      for j in range(4):
+        mat[j*4+i] = wmat[i][j]
+        
   loc = outobj.matrix_world * Vector()
   loc, rot, scale = rotmat_inv = outobj.matrix_world.decompose()
   
@@ -56,13 +107,7 @@ def surfmesh(expr, outobj, min1=None, max1=None):
   tmat.invert()
   
   mat1 = Matrix(outobj.matrix_world)
-  #mat1 = rot.to_matrix();
-  #mat1 = mat1.to_4x4()
-  
   mat1.invert()
-  #mat1 = Matrix()
-  #mat1 = mat1 * tmat2;
-  #mat1 = mat1 * tmat2;
   
   print("====generating shader bytecode=====")
   opcodes, constmap = expr.gen_opcodes(["_px", "_py", "_pz"])
@@ -71,22 +116,6 @@ def surfmesh(expr, outobj, min1=None, max1=None):
   _px = -1
   _py = 0.2
   _pz = -4.0
-  
-  #pyret = expr.run_opcodes(["_px", "_py", "_pz"], [_px, _py, _pz])
-  
-  #print("sm.run ret: ", sm.run([-1, 0.2, -4.0]))
-  #print("stack: ", sm._get_stack(16), "\n")
-  
-  #print("expr: ", str(expr))
-  """
-  try:
-    print("EVAL RET:", eval(str(expr)))
-  except ZeroDivisionError:
-    print("EVAL RET: nan")
-  """
-  
-  #print("pymachine ret:", pyret.stack[pyret.stackcur-1])
-  #print("stack: ", pyret.stack[:16])
   
   _min = (c_float*3)()
   _max = (c_float*3)()
@@ -97,6 +126,7 @@ def surfmesh(expr, outobj, min1=None, max1=None):
   min1 = _min; max1 = _max;
   
   verts = POINTER(c_float)();
+  ao_out = POINTER(c_float)();
   totvert = c_int(0);
   tris = POINTER(c_int)()
   tottri = c_int(0)
@@ -107,8 +137,8 @@ def surfmesh(expr, outobj, min1=None, max1=None):
   #void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
   #                   float min[3], float max[3], int ocdepth, int thread);
 
-  _lib.sm_tessellate(byref(verts), byref(totvert), byref(tris), byref(tottri), 
-                     min1, max1, c_int(7), mat, c_int(0));
+  _lib.sm_tessellate(byref(verts), byref(ao_out), byref(totvert), byref(tris), byref(tottri), 
+                     min1, max1, c_int(6), mat, c_int(0));
   
   #return#XXX
   
@@ -121,7 +151,11 @@ def surfmesh(expr, outobj, min1=None, max1=None):
   vs = []
   for i in range(totvert.value):
     co = Vector([verts[i*3], verts[i*3+1], verts[i*3+2]])
-    co = mat1 * co
+    
+    if use_local:
+      co = outmatrix * co
+    else:
+      co = mat1 * co
     v = bm.verts.new(co)
     vs.append(v)
   

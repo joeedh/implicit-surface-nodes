@@ -3,6 +3,7 @@ import traceback
 __all__ = [
   "utils",
   "sector",
+  "generate",
   "mesh",
   "node", 
   "node_tree",
@@ -17,11 +18,22 @@ __all__ = [
   'panel_ui',
   'symbol_optimize',
   'event',
-  'fields'
+  'fields',
+  'appstate',
+  'config',
+  'scene'
 ];
 
 import imp
-from . import utils, sector, mesh, node_tree, ops, symbol, codegen, c_code, props, panel_ui, event, fields
+from . import config
+
+imp.reload(config)
+
+from . import utils, sector, mesh, node_tree, ops, symbol, codegen, \
+              c_code, props, panel_ui, event, fields, appstate, generate, scene
+
+imp.reload(c_code)
+imp.reload(appstate)
 
 try:
   node_tree.bpy_exports.unregister()
@@ -44,19 +56,22 @@ imp.reload(node_tree)
 
 imp.reload(mesh)
 imp.reload(sector)
+imp.reload(scene)
 imp.reload(event)
 imp.reload(fields)
 
 imp.reload(ops)
 
 imp.reload(panel_ui)
-
+imp.reload(generate)
+imp.reload(scene)
 bpy_exports = utils.Registrar([
   node_tree.bpy_exports,
   ops.bpy_exports,
   props.bpy_exports,
   panel_ui.bpy_exports,
-  event.bpy_exports
+  event.bpy_exports,
+  fields.bpy_exports
 ])
 
 def register():

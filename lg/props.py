@@ -19,6 +19,8 @@ class ObjectProps (bpy.types.PropertyGroup):
   surface_groups = bpy.props.BoolVectorProperty(name="Surface Groups", size=32, default=[True for x in range(32)], subtype='LAYER')
   blend_mode = bpy.props.EnumProperty(name="Blend Mode", items=items, update=blend_mode_update)
   
+  global_mode = bpy.props.BoolProperty(name="Global", default=False, description="Use global coordinates")
+  
 def register_obj_props():
   bpy.types.Object.implicit = bpy.props.PointerProperty(type=ObjectProps)
   

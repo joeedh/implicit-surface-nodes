@@ -28,6 +28,11 @@
 #ifndef __BLI_UTILDEFINES_H__
 #define __BLI_UTILDEFINES_H__
 
+#define IN_RANGE(t, a, b) ((t) > (a) && (t) < (b))
+#define IN_RANGE_INCL(t, a, b) ((t) >= (a) && (t) <= (b))
+
+#define UNPACK3(v) (v)[0], (v)[1], (v)[2]
+
 /** \file BLI_utildefines.h
  *  \ingroup bli
  */

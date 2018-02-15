@@ -1,5 +1,6 @@
 #include "simd.h"
 #include "surface.h"
+#include "util.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,19 @@
 #endif
 
 #include "inline.h"
+
+//1 / sqrt(f)
+static floatf fast_isqrt(floatf n) {
+  intf v = *(intf*)&n;
+  floatf f;
+  
+  v = 0x5f3759df - (v >> 1);
+  
+  f = *(floatf*)&v;
+  f = f*(3.0f-n*f*f)*0.5f;
+  
+  return f;
+}
 
 /* Assumes that float is in the IEEE 754 single precision floating point format
  * and that int is 32 bits. */
@@ -39,7 +53,15 @@ static floatf sqrt_approx(floatf z)
     
     return f;
 }
+
+EXPORT void sm_isqrt(StackMachine *sm) {
+  floatf f = SPOP(sm);
   
+  f = fast_isqrt(f);
+  
+  SLOAD(sm, f);
+}
+
 EXPORT void sm_sqrt(StackMachine *sm) {
   floatf f = SPOP(sm);
   
@@ -87,9 +109,6 @@ EXPORT void sm_abs(StackMachine *sm) {
   
   SLOAD(sm, ret);
 }
-
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 EXPORT void sm_min(StackMachine *sm) {
   floatf f1 = SPOP(sm);
@@ -290,3 +309,11 @@ EXPORT void sm_fract(StackMachine *sm) {
   
   SLOAD(sm, f);
 }
+
+EXPORT void sm_sample_distfield(StackMachine *sm) {
+	floatf x = SPOP(sm);
+	floatf y = SPOP(sm);
+	floatf z = SPOP(sm);
+
+	SLOAD(sm, 0.0); //IMPLEMENT ME!
+};

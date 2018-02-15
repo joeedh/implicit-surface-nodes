@@ -334,9 +334,12 @@ class VectorMathNode(Node, ImplicitTree):
       b = coerce(ins["b"], "vec")
       
       f = []
-      if self.mathFunc != "CROSS":
+      if self.mathFunc not in ["DOT", "CROSS"]:
         for i in range(3):
           f.append(code(None, a[i], b[i], 0, 0));
+      elif elf.mathFunc == "DOT":
+        for i in range(3):
+          f.append(code(None, a, b, 0, 0));
       else:
         f = code(None, a, b, 0, 0)
       
@@ -560,10 +563,12 @@ class InputNode(Node, ImplicitTree):
 
     def init(self, context):
         self.outputs.new('ImplicitVectorSocket', "position")
+        self.outputs.new('ImplicitFieldSocket', "field")
     
     def gen_code(self, codegen, ins):
       return {
-        "position" : [sym("_px"), sym("_py"), sym("_pz")]
+        "position" : [sym("_px"), sym("_py"), sym("_pz")],
+		"field" : sym("_field")
       }
       
     def copy(self, node):
@@ -642,11 +647,10 @@ class NormalizeNode(Node, ImplicitTree):
     def gen_code(self, codegen, ins):
       v = coerce(ins["vector"], "vec");
       
-      #l = sym.func("sqrt", v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
-      l = sym.func('length', v)
-      
+      idot = sym.func('isqrt', [v[0]*v[0] + v[1]*v[1] + v[2]*v[2]]);
+     
       return {
-        "vector" : [v[0] / l, v[1] / l, v[2] / l]
+        "vector" : [v[0] * idot, v[1] * idot, v[2] * idot]
       }
 
     def copy(self, node):
@@ -662,6 +666,107 @@ class NormalizeNode(Node, ImplicitTree):
         pass
     def draw_label(self):
         return "Normalize"
+        
+# Derived from the Node base type.
+class VectorDotNode(Node, ImplicitTree):
+    # === Basics ===
+    # Description string
+    '''Dot Node'''
+    # Optional identifier string. If not explicitly defined, the python class name is used.
+    bl_idname = 'ImplicitVectorDotNode'
+    
+    # Label for nice name display
+    bl_label = 'Dot Product'
+    
+    # Icon identifier
+    bl_icon = 'SOUND'
+    bl_width_min = 250
+
+    def init(self, context):
+        self.inputs.new('ImplicitVectorSocket', "a")
+        self.inputs.new('ImplicitVectorSocket', "b")
+        self.outputs.new('ImplicitFieldSocket', "value")
+        
+    def gen_code(self, codegen, ins):
+      a = coerce(ins["a"], "vec");
+      b = coerce(ins["b"], "vec");
+      
+      return {
+        "value" : a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+      }
+
+    def copy(self, node):
+        print("Copying from node ", node)
+        
+    def free(self):
+        print("Removing node ", self, ", Goodbye!")
+
+    # Additional buttons displayed on the node.
+    def draw_buttons(self, context, layout):
+        pass
+        
+    def draw_buttons_ext(self, context, layout):
+        pass
+    def draw_label(self):
+        return "Dot Product"
+
+# Derived from the Node base type.
+class RotateNode2D(Node, ImplicitTree):
+    # === Basics ===
+    # Description string
+    '''Rotated 2D Node'''
+    # Optional identifier string. If not explicitly defined, the python class name is used.
+    bl_idname = 'ImplicitRotateNode2DNode'
+    
+    # Label for nice name display
+    bl_label = 'Rotate 2D'
+    
+    # Icon identifier
+    bl_icon = 'SOUND'
+    bl_width_min = 250
+
+    x_axis = bpy.props.IntProperty(default=0, name="Axis 1") #used during sorting
+    y_axis = bpy.props.IntProperty(default=1, name="Axis 2") #used during sorting
+
+    def init(self, context):
+        self.inputs.new('ImplicitVectorSocket', "vector")
+        self.inputs.new('ImplicitFieldSocket', 'angle')
+        
+        self.outputs.new('ImplicitVectorSocket', "vector")
+        
+    def gen_code(self, codegen, ins):
+      v = coerce(ins["vector"], "vec");
+      a = coerce(ins["angle"], "field");
+      
+      ax0 = self.x_axis
+      ax1 = self.y_axis
+      
+      x = v[ax0]*sym.func("cos", [a]) - v[ax1]*sym.func("sin", [a]);
+      y = v[ax1]*sym.func("cos", [a]) + v[ax0]*sym.func("sin", [a]);
+      
+      v = v[:]
+      v[ax0] = x;
+      v[ax1] = y;
+      
+      return {
+        "vector" : v
+      }
+
+    def copy(self, node):
+        print("Copying from node ", node)
+        
+    def free(self):
+        print("Removing node ", self, ", Goodbye!")
+
+    # Additional buttons displayed on the node.
+    def draw_buttons(self, context, layout):
+        layout.prop(self, "x_axis");
+        layout.prop(self, "y_axis");
+        
+    def draw_buttons_ext(self, context, layout):
+        pass
+    def draw_label(self):
+        return "2D Rotation"
 
 # Derived from the Node base type.
 class PerlinNode(Node, ImplicitTree):
@@ -821,5 +926,7 @@ bpy_exports = utils.Registrar([
   FieldCustomGroup,
   FieldDiffNode,
   NormalizeNode,
-  PerlinNode
+  PerlinNode,
+  RotateNode2D,
+  VectorDotNode
 ]);

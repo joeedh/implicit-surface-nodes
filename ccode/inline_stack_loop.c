@@ -3,11 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "util.h"
+
 #include "simd.h"
 #include "surface.h"
 
 #include "Alloc.h"
 #include "mesh.h"
+
+#ifdef EXPORT
+#undef EXPORT
+#endif
 
 #define EXPORT INLINE
 
@@ -15,7 +21,7 @@
 #include "func_perlin.c"
 
 floatf sm_run_inline(StackMachine *sm, SMOpCode *codes, int codelen) {
-  floatf registers[MAXREGISTER] __attribute__ ((aligned (16)))={0}; //hrm, wonder if compiler will put these in actual registers for me. . .
+  floatf registers[MAXREGISTER] MYALIGNED(16) = {0}; //hrm, wonder if compiler will put these in actual registers for me. . .
   SMOpCode *curcode = codes;
   
   sm->registers = registers;
@@ -203,6 +209,12 @@ floatf sm_run_inline(StackMachine *sm, SMOpCode *codes, int codelen) {
           case 18:
             sm_trunc(sm);
             break;
+          case 19:
+            sm_isqrt(sm);
+            break;
+		  case 20:
+			sm_sample_distfield(sm);
+			break;
         }
         
         break;

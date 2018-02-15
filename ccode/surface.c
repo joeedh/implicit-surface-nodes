@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "thread.h"
 
 #include <math.h>
@@ -32,16 +34,18 @@ static FuncTable func_table[] = {
   {sm_perlin, "perlin", 3},
   {sm_perlin_dv, "perlin_dv", 6},
   {sm_length, "length", 3},
-  {sm_trunc, "trunc", 1}
+  {sm_trunc, "trunc", 1},
+  {sm_isqrt, "isqrt", 1},
+  {sm_sample_distfield, "sample_distfield", 3}
 };
 
-FuncTable *sm_get_functable(int *sizeout) {
+MYEXPORT FuncTable *sm_get_functable(int *sizeout) {
   *sizeout = sizeof(func_table) / sizeof(*func_table);
   
   return func_table;
 }
 
-StackMachine *sm_new() {
+MYEXPORT StackMachine *sm_new() {
   static StackMachine rets[512];
   static int cur=0;
   
@@ -58,7 +62,7 @@ StackMachine *sm_new() {
   return sm;
 }
 
-void sm_free(StackMachine *sm) {
+MYEXPORT void sm_free(StackMachine *sm) {
   if (sm->codes)
     MEM_free(sm->codes);
   
@@ -66,14 +70,14 @@ void sm_free(StackMachine *sm) {
 }
 
 //codes is copied to its own buffer
-void sm_add_opcodes(StackMachine *sm, SMOpCode *codes, int totcode) {
+MYEXPORT void sm_add_opcodes(StackMachine *sm, SMOpCode *codes, int totcode) {
   sm->codes = MEM_malloc(sizeof(SMOpCode)*totcode);
   sm->totcode = totcode;
   
   memcpy(sm->codes, codes, sizeof(SMOpCode)*totcode);
 }
 
-void sm_add_constant(StackMachine *sm, float constant) {
+MYEXPORT void sm_add_constant(StackMachine *sm, float constant) {
 #ifdef SIMD
   sm->constants[sm->totconstant][0] = constant;
   sm->constants[sm->totconstant][1] = constant;
@@ -85,7 +89,7 @@ void sm_add_constant(StackMachine *sm, float constant) {
   sm->totconstant++;
 }
 
-void sm_throw(StackMachine *sm, char *message) {
+MYEXPORT void sm_throw(StackMachine *sm, char *message) {
   if (sm->exception) {
     fprintf(stderr, "Cannot throw '%s': Exception already set!\n", message);
   }
@@ -95,15 +99,15 @@ void sm_throw(StackMachine *sm, char *message) {
   sm->exception = 1;
 }
 
-floatf sm_get_stackitem(StackMachine *sm, int stackpos) {
+MYEXPORT floatf sm_get_stackitem(StackMachine *sm, int stackpos) {
   return sm->stack[stackpos];
 }  
 
-void sm_set_stackcur(StackMachine *sm, int stackcur) {
+MYEXPORT void sm_set_stackcur(StackMachine *sm, int stackcur) {
   sm->stackcur = stackcur;
 }
 
-void sm_set_global(StackMachine *sm, int stackpos, float value) {
+MYEXPORT void sm_set_global(StackMachine *sm, int stackpos, float value) {
 #ifdef SIMD
   sm->stack[stackpos][0] = value;
   sm->stack[stackpos][1] = value;
@@ -116,7 +120,7 @@ void sm_set_global(StackMachine *sm, int stackpos, float value) {
 
 static StackMachine *sampler_machines[MAXTHREAD];
 
-void sm_print_stack(StackMachine *sm, int start, int end) {
+MYEXPORT void sm_print_stack(StackMachine *sm, int start, int end) {
   int i;
   
   printf("[");
@@ -135,7 +139,7 @@ void sm_print_stack(StackMachine *sm, int start, int end) {
   printf("]\n");
 }
 
-void sm_set_sampler_machine(StackMachine *sm) {
+MYEXPORT void sm_set_sampler_machine(StackMachine *sm) {
   int i;
   
   sampler_machines[0] = sm;
@@ -156,7 +160,7 @@ void sm_set_sampler_machine(StackMachine *sm) {
   }
 }
 
-void sm_destroy_thread_samplers() {
+MYEXPORT void sm_destroy_thread_samplers() {
   StackMachine *sm;
   int i;
   
@@ -166,7 +170,7 @@ void sm_destroy_thread_samplers() {
   }
 }
 
-floatf sm_sampler(floatf x, floatf y, floatf z, int thread) {
+MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread) {
     StackMachine *sm = sampler_machines[thread];
     
     //printf("stack: %p %i\n", sm->stack, (int)(((unsigned long long)sm->stack) % 32));
@@ -193,11 +197,11 @@ v4sf sm_sampler_v4sf(v4sf x, v4sf y, v4sf z, int thread) {
 }
 */
 
-void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
+MYEXPORT void sm_tessellate(float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
                     float min[3], float max[3], int ocdepth, float matrix[4][4], int thread) {
   double start_time = getPerformanceTime();
   
-  threaded_polygonize(sm_sampler, vertout, totvert, triout, tottri, min, max, ocdepth, matrix, thread);
+  threaded_polygonize(sm_sampler, vertout, ao_out, totvert, triout, tottri, min, max, ocdepth, matrix, thread);
   
   start_time = getPerformanceTime() - start_time;
   printf("  time taken: %.4lfms\n", start_time);
@@ -205,12 +209,12 @@ void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
   //sm_print_stack(sampler_machines[thread], 0, 33);
 }
 
-void sm_free_tess(float *vertout, int *triout) {
+MYEXPORT void sm_free_tess(float *vertout, int *triout) {
   MEM_free(vertout);
   MEM_free(triout);
 } 
 
-floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
+MYEXPORT floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
 #if 0
   float registers[9]={0}; //hrm, wonder if compiler will put these in actual registers for me. . .
   SMOpCode *curcode = codes;
@@ -343,5 +347,5 @@ floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
   sm->registers = NULL;
   return sm->stack[sm->stackcur-1];
 #endif 
-  return; //0.0;
+  return 0.0;
 }

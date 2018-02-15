@@ -43,41 +43,18 @@
 
 #define MEM_callocN(size, tag) calloc(size, 1)
 #define MEM_mallocN(size, tag) malloc(size)
-#define MEM_freeN(mem) free(meem)
+#define MEM_freeN(mem) free(mem)
 
 #include "BLI_utildefines.h"
 #include "BLI_memarena.h"
 #include "BLI_linklist.h"
-#include "BLI_strict_flags.h"
+#include <stdbool.h>
 
 #ifdef WITH_MEM_VALGRIND
 #  include "valgrind/memcheck.h"
 #endif
 
-typedef struct LinkNode {
-  struct LinkNode *next;
-  void *data;
-} LinkNode;
-
-void BLI_linklist_freeN(LinkNode *head) {
-  LinkNode *next=head->next;
-  
-  for (; head; head=next) {
-    next = head->next;
-    MEM_freeN(head->data);
-    MEM_freeN(head);
-  }
-}
-
-void BLI_linklist_prepend(LinkNode **node, void *ptr) {[
-  LinkNode *n = MEM_callocN(sizeof(LinkNode), "LinkNode");
-  n->data = ptr;
-  n->next = *node;
-  
-  *node = n;
-}
-
-struct MemArena {
+typedef struct MemArena {
 	unsigned char *curbuf;
 	const char *name;
 	LinkNode *bufs;
@@ -86,11 +63,29 @@ struct MemArena {
 	size_t align;
 
 	bool use_calloc;
-};
+} MemArena;
+
+void BLI_linklist_freeN(LinkNode *head) {
+  LinkNode *next=head->next;
+  
+  for (; head; head=next) {
+    next = head->next;
+    MEM_free(head->link);
+    MEM_free(head);
+  }
+}
+
+void BLI_linklist_prepend(LinkNode **node, void *ptr) {
+  LinkNode *n = MEM_calloc(sizeof(LinkNode)); //, "LinkNode");
+  n->link = ptr;
+  n->next = *node;
+  
+  *node = n;
+}
 
 MemArena *BLI_memarena_new(const size_t bufsize, const char *name)
 {
-	MemArena *ma = MEM_callocN(sizeof(*ma), "memarena");
+	MemArena *ma = MEM_calloc(sizeof(*ma)); //, "memarena");
 	ma->bufsize = bufsize;
 	ma->align = 8;
 	ma->name = name;
@@ -158,7 +153,7 @@ void *BLI_memarena_alloc(MemArena *ma, size_t size)
 			ma->cursize = ma->bufsize;
 		}
 
-		ma->curbuf = (ma->use_calloc ? MEM_callocN : MEM_mallocN)(ma->cursize, ma->name);
+		ma->curbuf = MEM_calloc(ma->cursize); //(ma->use_calloc ? MEM_calloc : MEM_malloc)(ma->cursize); //, ma->name);
 		BLI_linklist_prepend(&ma->bufs, ma->curbuf);
 		memarena_curbuf_align(ma);
 	}

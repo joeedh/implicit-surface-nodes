@@ -36,7 +36,10 @@
 extern "C" {
 #endif
 
-#include "BLI_compiler_attrs.h"
+#define ATTR_WARN_UNUSED_RESULT
+#define ATTR_NONNULL(...)
+#define ATTR_MALLOC
+#define ATTR_ALLOC_SIZE(...)
 
 /* A reasonable standard buffer size, big
  * enough to not cause much internal fragmentation,

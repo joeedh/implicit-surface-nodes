@@ -296,7 +296,9 @@ enum {
 #  define ENOTRECOVERABLE 44
 #endif
 
+#ifndef _MSC_VER
 #include <sched.h>
+#endif
 
 /*
  * To avoid including windows.h we define only those things that we
@@ -312,6 +314,8 @@ enum {
 # define DWORD unsigned long
 #endif
 #endif
+
+#define HAVE_STRUCT_TIMESPEC //XXX windows isn't defining this
 
 #if !defined(HAVE_STRUCT_TIMESPEC)
 #define HAVE_STRUCT_TIMESPEC

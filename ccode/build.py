@@ -8,14 +8,14 @@ basepath = os.curdir
 sep = os.path.sep
 
 #release
-CFLAGS = " -c -funsigned-char -O3 "
+CFLAGS = " /MD /LD /c /Iwinpthread " #" -c -funsigned-char -O3 "
 
 #debug
-CFLAGS = " -c -g -funsigned-char -O0 "
+#CFLAGS = "-c /LD " #" -c -g -funsigned-char -O0 "
 
-CFLAGS += " -Iwinpthread "
+#CFLAGS += " -Iwinpthread "
 
-CC = "gcc "
+CC = "cl "
 
 def buildcmd(file):
   return CC + file + " " + CFLAGS
@@ -100,10 +100,11 @@ def filter(path, fname, deps):
     
     for f in deps[fname]:
       if not os.path.exists(f): continue
+      if f not in db: return True
       
       stat = os.stat(f)
-      if stat.st_mtime > db[f]["time"]: return True
       
+      if stat.st_mtime > db[f]["time"]: return True
       if check_dep(f): return True
     
     return False
@@ -161,6 +162,7 @@ def build_files(deps, files):
     print("building ", path+"...")
     
     cmd = buildcmd(path)
+    print(cmd)
     ret = os.system(cmd)
     
     if ret == 0:
@@ -180,7 +182,8 @@ def build_files(deps, files):
   return 0
 
 def link_files(files):
-  cmd = "gcc -shared winpthread/libpthreadGC2.a *.o -o libsurface.so"
+  #cmd = "gcc -shared winpthread/libpthreadGC2.a *.o -o libsurface.so"
+  cmd = "cl /MD /LD /kernel32.lib user32.lib shell32.lib winpthread/pthread.lib *.obj /link /out:libsurface.dll "
   ret = os.system(cmd)
   
   if ret != 0:
@@ -199,9 +202,11 @@ def build():
   print("\nsuccess!\n")
   
 def do_loop():
+  deps = scan_deps()
+  
   bad = 0
   while 1:
-    files2 = changed_files(files)
+    files2 = changed_files(deps, files)
     if len(files2) > 0:
       print("yay, build")
       bad = build()

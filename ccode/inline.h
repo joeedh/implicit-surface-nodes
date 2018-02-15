@@ -1,8 +1,8 @@
 #ifndef _INLINE_H
 #define _INLINE_H
 
-#ifdef MSC_VER
-#define INLINE static __forceline
+#ifdef _MSC_VER
+#define INLINE static __forceinline
 #else
 #define INLINE static inline __attribute__((always_inline)) 
 #endif

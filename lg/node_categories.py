@@ -125,7 +125,11 @@ node_categories = [
         NodeItem("ImplicitVectorReduceNode"),
         NodeItem("ImplicitNodeGroup"),
         NodeItem("ImplicitFieldDiffNode"),
-        NodeItem("ImplicitNormalizeNode")
+        NodeItem("ImplicitNormalizeNode"),
+        NodeItem("ImplicitVectorDotNode")
+    ]),
+    ImplicitNodeCategory("TRANSFORM", "Transform Nodes", items=[
+      NodeItem("ImplicitRotateNode2DNode")
     ]),
     ImplicitNodeCategory("CSG", "CSG Nodes", items=[
         NodeItem("ImplicitIntersectNode"),

@@ -24,6 +24,7 @@ class PHYSICS_PT_implicit(PhysicButtonsPanel, Panel):
         layout.prop(ob.implicit, "surface_groups")
         layout.prop(ob.implicit, "blend_mode")
         layout.prop(ob.implicit, "node_tree")
+        layout.prop(ob.implicit, "global_mode")
 
 
 from . import utils

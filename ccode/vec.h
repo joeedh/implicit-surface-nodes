@@ -5,7 +5,8 @@ static void *vec_resize(void *v, int typesize, int size) {
   MemHead *mh = v, *newmh;
   
   if (v == NULL) {
-    mh = MEM_malloc(typesize*size);    mh--;
+    mh = MEM_malloc(typesize*size);
+    mh--;
     mh->used = 0;
     
     return mh+1;
@@ -56,5 +57,5 @@ static void *vec_growone(void *v, int typesize) {
 
 #define V_COUNT(v)          (v) == NULL ? 0 : ((((MemHead*)v)-1)->used)
 #define V_APPEND(v, item) (((v) = vec_growone(v, sizeof(*(v)))), (v)[V_COUNT((v))-1] = item, (v))
-#define V_FREE(v)           (v  ? _MEM_free(v, __FILE__, __LINE__) : v)
+#define V_FREE(v)           (v  ? _MEM_free((void*)v, __FILE__, __LINE__) : 0)
 #define V_RESIZE(v, sz)     (v  = vec_resize(v, sizeof(*v), sz), v)

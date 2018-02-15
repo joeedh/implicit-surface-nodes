@@ -130,6 +130,19 @@ class Sqrt(SymFunc):
   def get_dv(args, s):
     return args[0].df(s) / (sym.func("sqrt", args[0])*2)
 
+class iSqrt(SymFunc):
+  name = "isqrt"
+  totarg = 1
+  
+  @staticmethod
+  def sm_eval(sm):
+    sm.load(1.0/safe_sqrt(sm.pop()))
+  
+  @staticmethod
+  def get_dv(args, s):
+    #return sym(-1) / (sym(2)*sym.func('sqrt', [args[0]])*args[0]);
+    return sym.func('isqrt', [args[0]]) / -(sym(2.0)*args[0]);
+    
 
 class Sign (SymFunc):
   name = "sign"

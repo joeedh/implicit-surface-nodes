@@ -30,5 +30,8 @@ void sm_perlin(struct StackMachine *sm);
 void sm_perlin_dv(struct StackMachine *sm);
 void sm_length(struct StackMachine *sm);
 void sm_trunc(struct StackMachine *sm);
+void sm_isqrt(struct StackMachine *sm);
+void sm_sample_distfield(struct StackMachine *sm);
+
 
 #endif /* _FUNCS_H */

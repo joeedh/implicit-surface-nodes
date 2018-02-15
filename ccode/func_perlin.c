@@ -337,7 +337,7 @@ static float grads[][3] = {
 };
 
 #define GRAD_SIZE 64
-#define ABS(a) ((a) < 0 ? -(a) : (a))
+#define ABS(a) ((a) < 0 ? 0-(a) : (a))
 
 typedef struct _Vec3 {
   floatf x;
@@ -346,20 +346,21 @@ typedef struct _Vec3 {
 } _Vec3;
 
 INLINE _Vec3 noisexyz(floatf x, floatf y, floatf z, int thread) {
-  intf idx = (intf)(3450.0*(x*475 + y*37.5 + z));
+  intf idx = (intf)(220*220*220*(x*220*220 + y*220 + z));
   
   //idx *= -((idx>0)*2 - 1);
 #ifdef SIMD
   //idx *= (idx<0)*2 + 1;
-  //idx[0] *= (idx[0]>0)*2-1;
-  //idx[1] *= (idx[1]>0)*2-1;
-  //idx[2] *= (idx[2]>0)*2-1;
-  //idx[3] *= (idx[3]>0)*2-1;
+  idx[0] *= (idx[0]>0)*2-1;
+  idx[1] *= (idx[1]>0)*2-1;
+  idx[2] *= (idx[2]>0)*2-1;
+  idx[3] *= (idx[3]>0)*2-1;
+  /*
   idx[0] = ABS(idx[0]);
   idx[1] = ABS(idx[1]);
   idx[2] = ABS(idx[2]);
   idx[3] = ABS(idx[3]);
-  
+  */
   idx[0] = idx[0] & (GRAD_SIZE-1);
   idx[1] = idx[1] & (GRAD_SIZE-1);
   idx[2] = idx[2] & (GRAD_SIZE-1);
@@ -422,6 +423,7 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     _Vec3 g8 = noisexyz(fu+sz, fv,    fz+sz, thread);
     
     floatf vm1 = v-1.0f, um1 = u-1.0f, wm1 = w-1.0f;
+    floatf u3, v3, w3;
     
     floatf c1, c2, c3, c4, c5, c6, c7, c8;
     floatf wm12, w2, v2, um12, vm12, u2;
@@ -430,34 +432,31 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     on factor;
     off period;
     
-    c1 :=   u*g1x +   v*g1y + w*g1z;
-    c2 :=   u*g2x + vm1*g2y + w*g2z;
-    c3 := um1*g3x + vm1*g3y + w*g3z;
-    c4 := um1*g4x +   v*g4y + w*g4z;
+    um1 := u - 1; vm1 := v - 1; wm1 := w - 1;
     
-    c5 :=   u*g5x +   v*g5y + wm1*g5z;
-    c6 :=   u*g6x + vm1*g6y + wm1*g6z;
-    c7 := um1*g7x + vm1*g7y + wm1*g7z;
-    c8 := um1*g8x +   v*g8y + wm1*g8z;
+    comment: c1 :=   u*g1x +   v*g1y + w*g1z;
+    comment: c2 :=   u*g2x + vm1*g2y + w*g2z;
+    comment: c3 := um1*g3x + vm1*g3y + w*g3z;
+    comment: c4 := um1*g4x +   v*g4y + w*g4z;
     
-    wm1 := w-1;
-    um1 := u-1;
-    vm1 := v-1;
+    comment: c5 :=   u*g5x +   v*g5y + wm1*g5z;
+    comment: c6 :=   u*g6x + vm1*g6y + wm1*g6z;
+    comment: c7 := um1*g7x + vm1*g7y + wm1*g7z;
+    comment: c8 := um1*g8x +   v*g8y + wm1*g8z;
     
-    w2   := w*w; 
-    v2   := v*v;
-    u2   := u*u;
-    wm12 := wm1*wm1;
-    vm12 := vm1*vm1;
-    um12 := um1*um1;
+    u1 := u*u*u*(u*(u*6 - 15) + 10);
+    v1 := v*v*v*(v*(v*6 - 15) + 10);
+    w1 := w*w*w*(w*(w*6 - 15) + 10);
     
-    on fort;
+    r1 := c1 + (c2 - c1)*v1;
+    r2 := c4 + (c3 - c4)*v1;
+    ra := r1 + (r2 - r1)*u1;
     
-    f := ((((2*w+1)*wm12*c3-(2*w-3)*c7*w2)*(2*v-3)*v2-((2*w+
-      1)*wm12*c4-(2*w-3)*c8*w2)*(2*v+1)*(vm12))*(2*u-3)*u2
-      +1+(((2*w+1)*wm12*c1-(2*w-3)*c5*w2)*(2*v+1)*vm12-((2
-      *w+1)*wm12*c2-(2*w-3)*c6*w2)*(2*v-3)*v2)*(2*u+1)*um12)*0.5;
+    r1 := c5 + (c6 - c5)*v1;
+    r2 := c8 + (c7 - c8)*v1;
+    rb := r1 + (r2 - r1)*u1;
     
+    r := ra + (rb - ra)*w1;
     */
     
     //*
@@ -475,12 +474,25 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     um1=u-1.0f;
     vm1=v-1.0f;
     
-    wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, um12=um1*um1, vm12=vm1*vm1;
+    wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, u3=u2*u, v3=v2*v, w3=w2*w, um12=um1*um1, vm12=vm1*vm1;
     
+    //first-order smoothstepp
+    /*
     return ((((2*w+1)*wm12*c3-(2*w-3)*c7*w2)*(2*v-3)*v2-((2*w+
       1)*wm12*c4-(2*w-3)*c8*w2)*(2*v+1)*(vm12))*(2*u-3)*u2
       +1+(((2*w+1)*wm12*c1-(2*w-3)*c5*w2)*(2*v+1)*vm12-((2
       *w+1)*wm12*c2-(2*w-3)*c6*w2)*(2*v-3)*v2)*(2*u+1)*um12)*0.5;
+    //*/
+    
+    //second-order smoothstep
+    ///*
+    return -((((3*(2*v-5)*v+10)*(c1-c2)*v3-c1+(3*(2*v-5)*v+10)*(c3-
+      c4)*v3+c4)*(3*(2*u-5)*u+10)*u3-((3*(2*v-5)*v+10)*(c1-c2)*
+      v3-c1)-(((3*(2*v-5)*v+10)*(c5-c6)*v3-c5+(3*(2*v-5)*v+10)*(
+      c7-c8)*v3+c8)*(3*(2*u-5)*u+10)*u3-((3*(2*v-5)*v+10)*(c5-c6
+      )*v3-c5)))*(3*(2*w-5)*w+10)*w3-(((3*(2*v-5)*v+10)*(c1-c2)*
+      v3-c1+(3*(2*v-5)*v+10)*(c3-c4)*v3+c4)*(3*(2*u-5)*u+10)*u3
+      -((3*(2*v-5)*v+10)*(c1-c2)*v3-c1)));
     //*/
 /*
     wm1=w-1;
@@ -599,6 +611,8 @@ EXPORT floatf pnoise13_dv(floatf dv[3], floatf u, floatf v, floatf w, floatf fu,
       g1.y*v-g1.x*u+(v-1.0)*g2.y)*(2.0*v-3.0)*v2)*(u-1.0)*u+ans3;
   ans1=-ans2;
   dv[0]=ans1*0.5;
+  
+  return 0;
 }
 
 EXPORT void sm_perlin(StackMachine *sm) {

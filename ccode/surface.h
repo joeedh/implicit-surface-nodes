@@ -3,8 +3,8 @@
 
 #include "simd.h"
 
-typedef float v4sf __attribute__ ((vector_size (16)));
-typedef int   v4si __attribute__ ((vector_size (16)));
+typedef floatf v4sf;
+typedef intf   v4si;
 
 /*
 */
@@ -83,9 +83,9 @@ typedef struct FuncTable {
 } FuncTable;
 
 typedef struct StackMachine {
-  floatf stack[MAXSTACK] __attribute__ ((aligned (32)));
+  floatf stack[MAXSTACK] MYALIGNED(32);
   floatf *registers;
-  floatf constants[MAXCONST] __attribute__ ((aligned (32)));
+  floatf constants[MAXCONST] MYALIGNED(32);
   
   SMOpCode *codes;
   int totcode, threadnr;
@@ -97,32 +97,32 @@ typedef struct StackMachine {
   
   int stackcur;
   FuncTable *func_table;
-  
+
   int totfunc;
 } StackMachine;
 
-FuncTable *sm_get_functable(int *sizeout);
-StackMachine *sm_new();
-void sm_free(StackMachine *sm);
+MYEXPORT FuncTable *sm_get_functable(int *sizeout);
+MYEXPORT StackMachine *sm_new();
+MYEXPORT void sm_free(StackMachine *sm);
 
 //codes is copied to its own buffer
-void sm_add_opcodes(StackMachine *sm, SMOpCode *codes, int totcode);
-void sm_add_constant(StackMachine *sm, float constant);
-void sm_throw(StackMachine *sm, char *message);
-void sm_set_stackcur(StackMachine *sm, int stackcur);
-void sm_set_global(StackMachine *sm, int stackpos, float value);
-floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen);
-floatf sm_get_stackitem(StackMachine *sm, int stackpos);
+MYEXPORT void sm_add_opcodes(StackMachine *sm, SMOpCode *codes, int totcode);
+MYEXPORT void sm_add_constant(StackMachine *sm, float constant);
+MYEXPORT void sm_throw(StackMachine *sm, char *message);
+MYEXPORT void sm_set_stackcur(StackMachine *sm, int stackcur);
+MYEXPORT void sm_set_global(StackMachine *sm, int stackpos, float value);
+MYEXPORT floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen);
+MYEXPORT floatf sm_get_stackitem(StackMachine *sm, int stackpos);
 
-void sm_tessellate(float **vertout, int *totvert, int **triout, int *tottri,
+MYEXPORT void sm_tessellate(float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
                    float min[3], float max[3], int ocdepth, float matrix[4][4], 
                    int thread);
-void sm_free_tess(float *vertout, int *triout);
-void sm_set_sampler_machine(StackMachine *sm);
-floatf sm_sampler(floatf x, floatf y, floatf z, int thread);
+MYEXPORT void sm_free_tess(float *vertout, int *triout);
+MYEXPORT void sm_set_sampler_machine(StackMachine *sm);
+MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread);
 
 //v4sf sm_sampler_v4sf(v4sf x, v4sf y, v4sf z, int thread);
-void sm_print_stack(StackMachine *sm, int start, int end);
+MYEXPORT void sm_print_stack(StackMachine *sm, int start, int end);
 
 //#define DEBUG_SM
 /*

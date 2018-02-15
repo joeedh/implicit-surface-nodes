@@ -12,11 +12,12 @@
 
 #include "surface.h"
 
-void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, int *totvert, 
+MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, int *totvert, 
                int **triout, int *tottri, float min[3], float max[3], int ocdepth, 
                float matrix[4][4], int thread);
 
-void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, int *totvert, int **triout, int *tottri,
+MYEXPORT void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, float **intensity_out,
+                int *totvert, int **triout, int *tottri,
                 float min[3], float max[3], int ocdepth, float matrix[4][4], int thread);
 
 #endif /* _MESH_H */

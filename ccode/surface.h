@@ -101,8 +101,11 @@ typedef struct StackMachine {
   int totfunc;
 } StackMachine;
 
+struct SpatialGraph;
+
 MYEXPORT FuncTable *sm_get_functable(int *sizeout);
 MYEXPORT StackMachine *sm_new();
+MYEXPORT StackMachine *sm_copy(StackMachine *sm);
 MYEXPORT void sm_free(StackMachine *sm);
 
 //codes is copied to its own buffer
@@ -114,7 +117,7 @@ MYEXPORT void sm_set_global(StackMachine *sm, int stackpos, float value);
 MYEXPORT floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen);
 MYEXPORT floatf sm_get_stackitem(StackMachine *sm, int stackpos);
 
-MYEXPORT void sm_tessellate(float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
+MYEXPORT void sm_tessellate(struct SpatialGraph *sg, float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
                    float min[3], float max[3], int ocdepth, float matrix[4][4], 
                    int thread);
 MYEXPORT void sm_free_tess(float *vertout, int *triout);
@@ -137,3 +140,4 @@ MYEXPORT void sm_print_stack(StackMachine *sm, int start, int end);
 //#endif
 
 #endif /* _SURFACE_H */
+

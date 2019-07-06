@@ -41,6 +41,8 @@ MYEXPORT void sg_add_object(SpatialGraph *sg, SceneObject *ob, int sign) {
 	ob->users++;
 
 	V_APPEND(sg->refs, ref);
+
+	so_init_threadmachines(ob);
 }
 
 MYEXPORT void sg_update(SpatialGraph *sg) {
@@ -67,51 +69,77 @@ MYEXPORT float sg_distance(SpatialGraph *sg) {
 	}
 }
 
-MYEXPORT float sg_sample(SpatialGraph *sg, float p[3]) {
-	int i, ilen = V_COUNT(sg->refs), first=1;
+MYEXPORT float sg_sample(SpatialGraph *sg, floatf p[3], int threadnr) {
+	int i, pass, ilen = V_COUNT(sg->refs), first=1;
 	floatf ret;
 	SceneRef *ref = sg->refs;
+	
+	//do unions first, then subtracts
 
-	for (i = 0; i < ilen; i++, ref++) {
-		SceneObject *ob = ref->ob;
-		float field;
+	for (pass = 0; pass < 2; pass++) {
+		for (i = 0, ref=sg->refs; i < ilen; i++, ref++) {
+			SceneObject *ob = ref->ob;
+			StackMachine *sm = ob->threadmachines[threadnr];
+			float field;
 
-		if (ob->machine->totcode == 0) {
-			continue;
-		}
+			if (!!(ob->mode == FIELD_SUBTRACT) != !!pass) {
+				continue;
+			}
+			//if ((ob->mode == FIELD_SUBTRACT) ^ !pass) {
+			//	continue;
+			//}
 
-		//get basic distfield
-		field = so_signed_distance(ob, p);
+			if (ob->machine->totcode == 0) {
+				continue;
+			}
 
-		//load globals
-		sm_set_global(ob->machine, 0, p[0]); //_px
-		sm_set_global(ob->machine, 1, p[1]); //_py
-		sm_set_global(ob->machine, 2, p[2]); //_pz
-		sm_set_global(ob->machine, 3, field); //_field
+			//get basic distfield
+			field = so_signed_distance(ob, p);
 
-		floatf f = sm_run_inline(ob->machine, ob->machine->codes, ob->machine->totcode);
-		
-		if (ob->mode == FIELD_SUBTRACT) {
-			f = -f;
-		}
+			//load globals
+			sm_set_global(sm, 0, p[0]); //_px
+			sm_set_global(sm, 1, p[1]); //_py
+			sm_set_global(sm, 2, p[2]); //_pz
+			sm_set_global(sm, 3, field); //_field
 
-		if (first) {
-			ret = f;
-			first = 0;
-		}
+			floatf f = sm_run_inline(sm, sm->codes, sm->totcode);
 
-		#ifdef SIMD
+			if (first) {
+				ret = f; //ob->mode == FIELD_SUBTRACT ? MAX(-f, 0) : f;
+				first = 0;
+
+				continue;
+			}
+
+			if (ob->mode == FIELD_SUBTRACT) {
+#ifdef SIMD
 				floatf f2 = {
-					MAX(f[0], ret[0]),
-					MAX(f[1], ret[1]),
-					MAX(f[2], ret[2]),
-					MAX(f[3], ret[3])
+					MAX(-f[0], ret[0]),
+					MAX(-f[1], ret[1]),
+					MAX(-f[2], ret[2]),
+					MAX(-f[3], ret[3])
 				};//*/
 
 				ret = f2;
-		#else
-				ret = MAX(f, ret);
-		#endif
+#else
+				ret = MAX(ret, -f);
+#endif
+			}
+			else {
+#ifdef SIMD
+				floatf f2 = {
+					MIN(f[0], ret[0]),
+					MIN(f[1], ret[1]),
+					MIN(f[2], ret[2]),
+					MIN(f[3], ret[3])
+				};//*/
+
+				ret = f2;
+#else
+				ret = MIN(f, ret);
+#endif
+			}
+		}
 	}
 
 #ifdef SIMD

@@ -4,6 +4,7 @@
 #include "simd.h"
 #include "object.h"
 #include "surface.h"
+#include "thread.h"
 
 #include "BLI_kdopbvh.h"
 
@@ -41,10 +42,14 @@ typedef struct SceneObject {
 	struct SMOpCode *opcodes;
 	int opcode_len;
 
+	struct StackMachine *threadmachines[MAXTHREAD];
+
 	ObjectFieldMode mode;
 } SceneObject;
 
 struct SMOpCode; //see surface.h
+
+MYEXPORT void so_init_threadmachines(SceneObject *ob);
 
 MYEXPORT SceneMesh *so_create_mesh(char name[32], int tottri, int totvert, int totuv, float *verts, int *tris, 
 	                     int *triuvs, float *uvs);

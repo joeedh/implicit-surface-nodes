@@ -15,6 +15,8 @@
 #include "mesh.h"
 #include "timer.h"
 
+#include "spatial.h"
+
 static FuncTable func_table[] = {
   {sm_sqrt, "sqrt", 1},
   {sm_abs, "abs", 1},
@@ -45,12 +47,26 @@ MYEXPORT FuncTable *sm_get_functable(int *sizeout) {
   return func_table;
 }
 
+MYEXPORT StackMachine *sm_copy(StackMachine *sm) {
+	StackMachine *sm2 = MEM_malloc(sizeof(*sm2));
+	
+	*sm2 = *sm;
+
+	if (sm2->codes) {
+		sm2->codes = MEM_copyalloc(sm2->codes, MEM_size(sm2->codes));
+	}
+
+	sm2->registers = NULL;
+
+	return sm2;
+}
+
 MYEXPORT StackMachine *sm_new() {
-  static StackMachine rets[512];
+  static StackMachine rets[2048];
   static int cur=0;
   
   StackMachine *sm = rets + cur;
-  cur = (cur + 1) & 511;
+  cur = (cur + 1) & 2047;
 
   //seriously, I can't allocate on the heap here? mean!
   //StackMachine *sm = MEM_malloc(sizeof(StackMachine));
@@ -161,16 +177,21 @@ MYEXPORT void sm_set_sampler_machine(StackMachine *sm) {
 }
 
 MYEXPORT void sm_destroy_thread_samplers() {
-  StackMachine *sm;
   int i;
   
   for (i=1; i<MAXTHREAD; i++) {
-    sm_free(sampler_machines[i]);
-    sampler_machines[i] = NULL;
+	  if (sampler_machines[i]) {
+		  sm_free(sampler_machines[i]);
+		  sampler_machines[i] = NULL;
+	  }
   }
 }
 
-MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread) {
+MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread, void *userdata) {
+	floatf p[3] = { x, y, z };
+
+	return sg_sample(userdata, p, thread);
+#if 0
     StackMachine *sm = sampler_machines[thread];
     
     //printf("stack: %p %i\n", sm->stack, (int)(((unsigned long long)sm->stack) % 32));
@@ -183,6 +204,7 @@ MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread) {
     
     return sm_run_inline(sm, sm->codes, sm->totcode);
     //return sm_run(sm, sm->codes, sm->totcode);
+#endif
 }
 
 /*
@@ -197,11 +219,11 @@ v4sf sm_sampler_v4sf(v4sf x, v4sf y, v4sf z, int thread) {
 }
 */
 
-MYEXPORT void sm_tessellate(float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
+MYEXPORT void sm_tessellate(SpatialGraph *sg, float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
                     float min[3], float max[3], int ocdepth, float matrix[4][4], int thread) {
   double start_time = getPerformanceTime();
   
-  threaded_polygonize(sm_sampler, vertout, ao_out, totvert, triout, tottri, min, max, ocdepth, matrix, thread);
+  threaded_polygonize(sm_sampler, vertout, ao_out, totvert, triout, tottri, min, max, ocdepth, matrix, thread, sg);
   
   start_time = getPerformanceTime() - start_time;
   printf("  time taken: %.4lfms\n", start_time);

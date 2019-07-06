@@ -87,12 +87,12 @@ float fGetOffset(float fValue1, float fValue2, float fValueDesired) {
   return (fValueDesired - fValue1)/fDelta;
 }
 
-MYEXPORT void smooth_topology(floatf (*sample)(floatf,floatf,floatf,int), 
+MYEXPORT void smooth_topology(floatf (*sample)(floatf,floatf,floatf,int, void*), 
                      float *verts, int *tris, int totvert, 
-                     int tottri, float cellsize[3], int thread) 
+                     int tottri, float cellsize[3], int thread, void *userdata) 
 {
   struct {int tot; float co[3];} *vs = MEM_calloc(sizeof(*vs)*totvert);
-  float co2[3], cmpvec[3];
+  float cmpvec[3];
   float max_move = sqrt(DOT(cellsize, cellsize))*0.15;
   int si, i, j, *tri=tris;
   
@@ -127,7 +127,7 @@ MYEXPORT void smooth_topology(floatf (*sample)(floatf,floatf,floatf,int),
         continue;
       }
       
-      VECMULF(vs[i].co, 1.0/(float)vs[i].tot);
+      VECMULF(vs[i].co, 1.0f/(float)vs[i].tot);
       VECLOAD((verts+i*3), vs[i].co);
     }
   }
@@ -163,14 +163,14 @@ MYEXPORT void smooth_topology(floatf (*sample)(floatf,floatf,floatf,int),
         continue;
       }
       
-      f = sample(xco, yco, zco, thread);
+      f = sample(xco, yco, zco, thread, userdata);
       
       //if (f >= -0.00001f && f <= 0.00001f)
       //    continue;
         
-      dv[0] = (sample(xco+DF, yco, zco, thread) - f) * IDF;
-      dv[1] = (sample(xco, yco+DF, zco, thread) - f) * IDF;
-      dv[2] = (sample(xco, yco, zco+DF, thread) - f) * IDF;
+      dv[0] = (sample(xco+DF, yco, zco, thread, userdata) - f) * IDF;
+      dv[1] = (sample(xco, yco+DF, zco, thread, userdata) - f) * IDF;
+      dv[2] = (sample(xco, yco, zco+DF, thread, userdata) - f) * IDF;
       
       d = dv[0]*dv[0] + dv[1]*dv[1] + dv[2]*dv[2];
       //if (d == 0.0)
@@ -238,7 +238,7 @@ static float mul_m4_v3(float v[3], float mat[4][4]) {
 }
 
 void vMarchCube1(float fX, float fY, float fZ, float afCubeValue[8], HashTable *ht, int **tris, 
-                 floatf (*sample)(floatf,floatf,floatf,int), float cellsize[3], int thread);
+                 floatf (*sample)(floatf,floatf,floatf,int), float cellsize[3], int thread, void *userdata);
 
 typedef struct ThreadJob {
   float *verts;
@@ -246,8 +246,9 @@ typedef struct ThreadJob {
   int totvert, tottri;
   float min[3], max[3], matrix[4][4];
   int threadnr, done, running, index;
-  floatf (*sample)(floatf, floatf, floatf, int);
+  floatf (*sample)(floatf, floatf, floatf, int, void*);
   int ocdepth;
+  void *userdata;
 } ThreadJob;
 
 void *run_thread_job(void *thread_data) {
@@ -258,7 +259,7 @@ void *run_thread_job(void *thread_data) {
 //void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, int *totvert, int **triout, int *tottri,
 ///                float min[3], float max[3], int ocdepth, float matrix[4][4], int thread) 
   
-  polygonize(job->sample, &job->verts, &job->totvert, &job->tris, &job->tottri, job->min, job->max, job->ocdepth, job->matrix, job->threadnr);
+  polygonize(job->sample, &job->verts, &job->totvert, &job->tris, &job->tottri, job->min, job->max, job->ocdepth, job->matrix, job->threadnr, job->userdata);
   
   //printf("tottri: %d, totvert: %d\n", job->tottri, job->totvert);
   
@@ -291,9 +292,9 @@ MYEXPORT void merge_tiles(ThreadJob *tiles, int tottile, float **vertout, int *t
       v2 = ht_ensurevert(ht, vs + v2*3);
       v3 = ht_ensurevert(ht, vs + v3*3);
       
-      V_APPEND(tris, v1);
-      V_APPEND(tris, v2);
       V_APPEND(tris, v3);
+      V_APPEND(tris, v2);
+      V_APPEND(tris, v1);
     }
     
     *tottri += job->tottri;
@@ -326,9 +327,9 @@ MYEXPORT void merge_tiles(ThreadJob *tiles, int tottile, float **vertout, int *t
   ht_free(ht);
 }
 
-MYEXPORT void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, float **intensity_out, 
+MYEXPORT void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int,void*), float **vertout, float **intensity_out, 
                          int *totvert, int **triout, int *tottri,
-                float min[3], float max[3], int ocdepth, float matrix[4][4], int thread) 
+                float min[3], float max[3], int ocdepth, float matrix[4][4], int thread, void *userdata) 
 {
   //polygonize(sample, vertout, totvert, triout, tottri, min, max, ocdepth, matrix, thread);
   //printf("totv: %d %d\n", *totvert, *tottri);
@@ -355,14 +356,15 @@ MYEXPORT void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int), 
         memset(&sjob, 0, sizeof(sjob));
         
         sjob.index = tottile++;
-        
+		sjob.userdata = userdata;
+
         sjob.min[0] = min[0] + tilesize[0]*i;
         sjob.min[1] = min[1] + tilesize[1]*j;
-        sjob.min[2] = min[1] + tilesize[2]*k;
+        sjob.min[2] = min[2] + tilesize[2]*k;
         
         sjob.max[0] = min[0] + tilesize[0]*(i+1);
         sjob.max[1] = min[1] + tilesize[1]*(j+1);
-        sjob.max[2] = min[1] + tilesize[2]*(k+1);
+        sjob.max[2] = min[2] + tilesize[2]*(k+1);
         
         memcpy(sjob.matrix, matrix, sizeof(float)*16);
         V_APPEND(tiles, sjob);
@@ -438,10 +440,11 @@ MYEXPORT void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int), 
   printf("merging tiles. . .\n");
   merge_tiles(tiles, tottile, vertout, totvert, triout, tottri, thread);
 
-  /*
+  //*
+#if 0
   printf("relaxing topology. . .\n");
   
-  for (i=0; i<4; i++) {
+  for (i=0; i<1; i++) {
     int grid;
     float cellsize[3];
     
@@ -449,40 +452,33 @@ MYEXPORT void threaded_polygonize(floatf (*sample)(floatf, floatf, floatf,int), 
     grid = (int)ceil(pow((int)pow(8.0, ocdepth), 1.0/3.0));
     VECMULF(cellsize, 1.0/grid);
     
-    smooth_topology(sample, *vertout, *triout, *totvert, *tottri, cellsize, thread);
+    smooth_topology(sample, *vertout, *triout, *totvert, *tottri, cellsize, thread, userdata);
   }
+#endif
   //*/
   
   
   MEM_free(tiles);
 }
   
-MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **vertout, int *totvert, int **triout, int *tottri,
-                float min[3], float max[3], int ocdepth, float matrix[4][4], int thread) 
+MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int, void*), float **vertout, int *totvert, int **triout, int *tottri,
+                float min[3], float max[3], int ocdepth, float matrix[4][4], int thread, void *userdata) 
 {
   HashTable *ht = ht_new();
   float *verts=NULL;
   float *samplegrid=NULL;
   int grid, *tris=NULL;
   float afCubeValue[8];
-  float cellsize[3], p[3], cellsize_muld[3], queue[4][3];
+  float cellsize[3], p[3], queue[4][3];
   int i, j, k, iqueue[4], totqueue=0, gridplus1;
   HashEntry *en;
   
   VECSUB(cellsize, max, min);
   grid = (int)ceil(pow((int)pow(8.0, ocdepth), 1.0/3.0));
+  //grid = grid >> 1;
   VECMULF(cellsize, 1.0/grid);
   
   gridplus1 = grid+1;
-  
-  cellsize_muld[0] = matrix[0][0]*matrix[0][0] + matrix[1][0]*matrix[1][0] + matrix[2][0]*matrix[2][0];
-  cellsize_muld[1] = matrix[0][0]*matrix[0][0] + matrix[1][0]*matrix[1][0] + matrix[2][0]*matrix[2][0];
-  cellsize_muld[2] = matrix[0][0]*matrix[0][0] + matrix[1][0]*matrix[1][0] + matrix[2][0]*matrix[2][0];
-  
-  cellsize_muld[0] = 1.0f / sqrt(cellsize_muld[0]);
-  cellsize_muld[1] = 1.0f / sqrt(cellsize_muld[1]);
-  cellsize_muld[2] = 1.0f / sqrt(cellsize_muld[2]);
-  VECMUL(cellsize_muld, cellsize_muld, cellsize);
   
   samplegrid = MEM_calloc(sizeof(float)*(grid+1)*(grid+1)*(grid+1));
   
@@ -509,7 +505,7 @@ MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **v
           floatf f;
           
           totqueue=0;
-          f = sample(xvs, yvs, zvs, thread);
+          f = sample(xvs, yvs, zvs, thread, userdata);
           
           samplegrid[iqueue[0]] = f[0];
           samplegrid[iqueue[1]] = f[1];
@@ -520,7 +516,7 @@ MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **v
         
           for (l=0; l<4; l++) {
             floatf xvs = queue[l][0], yvs = queue[l][1], zvs = queue[l][2];
-            floatf f = sample(xvs, yvs, zvs, thread);
+            floatf f = sample(xvs, yvs, zvs, thread, userdata);
           
             samplegrid[iqueue[l]] = f;
 			totqueue = 0;
@@ -554,7 +550,7 @@ MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **v
 
         //printf("x y z: %.3f %.3f %.3f\n", x, y, z);
         //printf("%.2f %.2f %.2f %d %d %d\n", cellsize[0], cellsize[1], cellsize[2], i, j, k);
-        vMarchCube1(p[0], p[1], p[2], afCubeValue, ht, &tris, sample, cellsize, thread);
+        vMarchCube1(p[0], p[1], p[2], afCubeValue, ht, &tris, sample, cellsize, thread, userdata);
         //vMarchCube1(p[0], p[1], p[2], ht, &tris, sample, cellsize, thread);
         
         //printf("marching\n");
@@ -604,7 +600,7 @@ MYEXPORT void polygonize(floatf (*sample)(floatf, floatf, floatf,int), float **v
 
 //vMarchCube1 performs the Marching Cubes algorithm on a single cube
 void vMarchCube1(float fX, float fY, float fZ, float afCubeValue[8], HashTable *ht, int **tris, 
-                 floatf (*sample)(floatf,floatf,floatf,int), float cellsize[3], int thread)
+                 floatf (*sample)(floatf,floatf,floatf,int,void*), float cellsize[3], int thread, void *userdata)
 {
   extern int aiCubeEdgeFlags[256];
   extern int a2iTriangleConnectionTable[256][16];

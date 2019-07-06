@@ -94,7 +94,8 @@ int ht_insert(HashTable *ht, float vec[3], unsigned int value, int *value_out) {
   HashEntry *en=NULL;
   int hash=0;
   int key = HASHKEY(VROUND(vec[0]), VROUND(vec[1]), VROUND(vec[2]));
-  int off = 0, size, basehash;
+  int off = 0, size;
+  unsigned int basehash;
   
   //key = key == 0 ? 1 : key;
   
@@ -106,7 +107,8 @@ int ht_insert(HashTable *ht, float vec[3], unsigned int value, int *value_out) {
   }
   
   size = ht->size;
-  basehash = ABS(key);
+  basehash = ((unsigned int)key) & 0x7FFFFFF;
+
   while (1) {
     hash = (basehash + off) % size;
     

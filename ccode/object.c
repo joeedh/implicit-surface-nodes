@@ -8,6 +8,7 @@
 #include "Alloc.h"
 #include "vec.h"
 #include "surface.h"
+#include "thread.h"
 
 MYEXPORT SceneMesh *so_create_mesh(char name[32], int tottri, int totvert, int totuv, float *verts, int *tris, 
 	                      int *triuvs, float *uvs)
@@ -45,15 +46,15 @@ MYEXPORT SceneMesh *so_create_mesh(char name[32], int tottri, int totvert, int t
 		memcpy(m->triuvs, triuvs, sizeof(int)*tottri*3);
 	}
 
-	m->bvh = BLI_bvhtree_new(tottri * 6, 0.0001, 8, 18);
+	m->bvh = BLI_bvhtree_new(tottri, 0.0001f, 8, 8);
 
 	for (i = 0; i < tottri; i++) {
-		float cos[3][3];
+		float cos[9];
 		int *tri = tris + i*3;
 
-		memcpy(cos[0], verts + tri[0] * 3, sizeof(float) * 3);
-		memcpy(cos[1], verts + tri[1] * 3, sizeof(float) * 3);
-		memcpy(cos[2], verts + tri[2] * 3, sizeof(float) * 3);
+		memcpy(cos,   verts + tri[0] * 3, sizeof(float) * 3);
+		memcpy(cos+3, verts + tri[1] * 3, sizeof(float) * 3);
+		memcpy(cos+6, verts + tri[2] * 3, sizeof(float) * 3);
 
 		BLI_bvhtree_insert(m->bvh, i, cos, 3);
 	}
@@ -88,6 +89,7 @@ MYEXPORT SceneObject *so_create_object(char name[32], SceneMesh *mesh, float *co
 		memcpy(ob->rot, rot, sizeof(float)*3);
 	if (matrix) {
 		memcpy(ob->matrix, matrix, sizeof(float)*16);
+		invert_m4(ob->matrix);
 	} else { //make identity matrix
 		ob->matrix[0][0] = ob->matrix[1][1] = ob->matrix[2][2] = ob->matrix[3][3] = 1.0f;
 	}
@@ -154,7 +156,7 @@ static nearest_callback(void *userdata, int index, const float co[3], BVHTreeNea
 
 	cross_v3_v3v3(n, n1, n2);
 
-	sign = dot_v3v3(n, vec) < 0.0 ? -1 : 1;
+	sign = dot_v3v3(n, vec) < 0.0f ? -1.0f : 1.0f;
 
 	dist = len_v3v3(p, co)*sign;
 
@@ -162,7 +164,7 @@ static nearest_callback(void *userdata, int index, const float co[3], BVHTreeNea
 		copy_v3_v3(nearest->co, p);
 		copy_v3_v3(nearest->no, vec);
 
-		//nearest->dist_sq = dist*dist;
+		nearest->dist_sq = dist*dist;
 		nearest->index = index;
 		data->dist = dist;
 	}
@@ -189,15 +191,40 @@ MYEXPORT float so_signed_distance(SceneObject *ob, float *co) {
 	nearest.index = -1;
 
 	copy_v3_v3(co2, co);
-	//mul_v3_m4v3(co2, ob->matrix, co);
+	mul_v3_m4v3(co2, ob->matrix, co);
 
 	BLI_bvhtree_find_nearest(ob->data->bvh, co2, &nearest, nearest_callback, &userdata);
 
 	return userdata.dist;
 }
 
+MYEXPORT void so_init_threadmachines(SceneObject *ob) {
+	int i;
+
+	if (!ob->machine)
+		return;
+
+	for (i = 0; i < MAXTHREAD; i++) {
+		if (ob->threadmachines[i])
+			sm_free(ob->threadmachines[i]);
+		
+		ob->threadmachines[i] = sm_copy(ob->machine);
+		ob->threadmachines[i]->threadnr = i;
+	}
+}
+
 MYEXPORT void so_free_object(SceneObject *ob) {
+	int i;
+
 	sm_free(ob->machine);
+
+	for (i = 0; i < MAXTHREAD; i++) {
+		if (ob->threadmachines[i]) {
+			sm_free(ob->threadmachines[i]);
+		}
+
+		ob->threadmachines[i] = NULL;
+	}
 
 	if (ob->data) {
 		ob->data->users--;

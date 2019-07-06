@@ -22,7 +22,7 @@ MYEXPORT void sg_free(SpatialGraph *sg);
 MYEXPORT int sg_inside(SpatialGraph *sg, float *co);
 MYEXPORT void sg_add_object(SpatialGraph *sh, SceneObject *ob, int sign);
 MYEXPORT void sg_update(SpatialGraph *sg);
-MYEXPORT float sg_sample(SpatialGraph *sg);
+MYEXPORT float sg_sample(SpatialGraph *sg, floatf p[3], int threadnr);
 
 //SpatialGraph->flag
 enum {

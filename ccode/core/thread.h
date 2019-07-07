@@ -1,7 +1,7 @@
 #ifndef _IMPLICIT_THREAD_H
 #define _IMPLICIT_THREAD_H
 
-#define MAXTHREAD 1
+#define MAXTHREAD 5
 
 #endif /* _IMPLICIT_THREAD_H */
 

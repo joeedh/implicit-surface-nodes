@@ -37,6 +37,15 @@
  *  \ingroup bli
  */
 
+#define LIKELY(a) a
+#define UNUSED_VARS(a) a
+
+#ifdef _MSC_VER
+#define STREQ(a, b) (strcmp(a, b)==0)
+#else
+#define STREQ(a, b) (strcmp(a, b)==0)
+#endif
+
 #define MIN2(a, b)  ((a) < (b) ? (a) : (b))
 #define MAX2(a, b)  ((a) > (b) ? (a) : (b))
 

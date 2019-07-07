@@ -35,6 +35,8 @@
 #include "BLI_utildefines.h"
 #include <stdbool.h>
 
+#include "DNA_listBase.h"
+#if 0
 typedef struct ListBase {
 	void *first, *last;
 } ListBase;
@@ -46,6 +48,7 @@ typedef struct LinkData {
 
 //struct ListBase;
 //struct LinkData;
+#endif
 
 #define ATTR_WARN_UNUSED_RESULT
 #define ATTR_MALLOC

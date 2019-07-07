@@ -152,6 +152,10 @@ static const int NAN_INT = 0x7FC00000;
 #  endif
 #endif
 
+#ifndef finite
+#define finite(n) _finite(n)
+#endif
+
 #if BLI_MATH_DO_INLINE
 #include "math_base_inline.c"
 #endif

@@ -143,6 +143,18 @@ static void *_MEM_copyalloc(void *mem, int size, char *file, int line) {
   return ret;
 }
 
+static void *_MEM_dupalloc(void* mem, char *file, int line) {
+	if (!_MEM_check(mem, file, line)) {
+		return NULL;
+	}
+
+	int size = _MEM_size(mem, file, line);
+	void* ret = _MEM_malloc(size, file, line);
+
+	memcpy(ret, mem, size);
+	return ret;
+}
+
 #define MEM_malloc(size) _MEM_malloc(size, __FILE__, __LINE__)
 #define MEM_calloc(size) _MEM_calloc(size, __FILE__, __LINE__)
 #define MEM_free(mem) _MEM_free(mem, __FILE__, __LINE__)
@@ -150,6 +162,7 @@ static void *_MEM_copyalloc(void *mem, int size, char *file, int line) {
 #define MEM_check(mem) _MEM_check(mem, __FILE__, __LINE__)
 #define MEM_realloc(mem, size) _MEM_realloc(mem, size, __FILE__, __LINE__)
 #define MEM_size(mem) _MEM_size(mem, __FILE__, __LINE__)
+#define MEM_dupalloc(mem) _MEM_dupalloc(mem, __FILE__, __LINE__)
 
 //blender compatibility macros
 
@@ -159,5 +172,6 @@ static void *_MEM_copyalloc(void *mem, int size, char *file, int line) {
 #define MEM_allocN_len(mem) MEM_size(mem)
 #define MEM_SAFE_FREE(mem) MEM_free(mem)
 #define UNLIKELY(t) (t)
+#define MEM_dupallocN(size, msg) MEM_dupalloc(size)
 
 #endif /* _ALLOC_H */

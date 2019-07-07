@@ -57,8 +57,18 @@ def open_library():
   
  
   path = config.libsurface_path
+  path = os.path.abspath(os.path.normpath(path))
+  dir = os.path.split(path)[0]
 
+  if dir not in os.environ["PATH"]:
+    if "win" in sys.platform:
+      os.environ["PATH"] += ";" + dir
+    else:
+      os.environ["PATH"] += ":" + dir
+
+    
   print("\nUsing library " + path + " exists:", os.path.exists(path), "\n")
+
   _lib = windll.LoadLibrary(path)
 
   #if _lib == None:

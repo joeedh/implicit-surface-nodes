@@ -11,6 +11,10 @@
 
 #include <float.h>
 
+void BLI_assert(int booleon) {
+
+}
+
 MYEXPORT SpatialGraph *sg_new() {
 	SpatialGraph *sg = MEM_calloc(sizeof(*sg));
 

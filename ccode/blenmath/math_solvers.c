@@ -28,7 +28,7 @@
  *  \ingroup bli
  */
 
-#include "MEM_guardedalloc.h"
+#include "Alloc.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"

@@ -119,6 +119,7 @@ node_categories = [
     ]),
     ImplicitNodeCategory("MATH", "Math Nodes", items=[
         NodeItem("ImplicitMathNode"),
+        NodeItem("ImplicitVec3LengthNode"),
         NodeItem("ImplicitVectorMathNode"),
         NodeItem("ImplicitSeperateVecNode"),
         NodeItem("ImplicitCombineVecNode"),

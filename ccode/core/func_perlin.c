@@ -427,7 +427,6 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     
     floatf c1, c2, c3, c4, c5, c6, c7, c8;
     floatf wm12, w2, v2, um12, vm12, u2;
-    
     /*
     on factor;
     off period;
@@ -475,13 +474,14 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     vm1=v-1.0f;
     
     wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, u3=u2*u, v3=v2*v, w3=w2*w, um12=um1*um1, vm12=vm1*vm1;
-    
+#if 1
+
     //first-order smoothstepp
     /*
     return ((((2*w+1)*wm12*c3-(2*w-3)*c7*w2)*(2*v-3)*v2-((2*w+
       1)*wm12*c4-(2*w-3)*c8*w2)*(2*v+1)*(vm12))*(2*u-3)*u2
       +1+(((2*w+1)*wm12*c1-(2*w-3)*c5*w2)*(2*v+1)*vm12-((2
-      *w+1)*wm12*c2-(2*w-3)*c6*w2)*(2*v-3)*v2)*(2*u+1)*um12)*0.5;
+      *w+1)*wm12*c2-(2*w-3)*c6*w2)*(2*v-3)*v2)*(2*u+1)*um12)*0.5 - 0.5;
     //*/
     
     //second-order smoothstep
@@ -494,43 +494,44 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
       v3-c1+(3*(2*v-5)*v+10)*(c3-c4)*v3+c4)*(3*(2*u-5)*u+10)*u3
       -((3*(2*v-5)*v+10)*(c1-c2)*v3-c1)));
     //*/
-/*
+#else
+
     wm1=w-1;
     um1=u-1;
     vm1=v-1;
     
     wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, um12=um1*um1, vm12=vm1*vm1;
-#define g1x g1[0]
-#define g1y g1[1]
-#define g1z g1[2]
+#define g1x g1.x
+#define g1y g1.y
+#define g1z g1.z
 
-#define g2x g2[0]
-#define g2y g2[1]
-#define g2z g2[2]
+#define g2x g2.x
+#define g2y g2.y
+#define g2z g2.z
 
-#define g3x g3[0]
-#define g3y g3[1]
-#define g3z g3[2]
+#define g3x g3.x
+#define g3y g3.y
+#define g3z g3.z
 
-#define g4x g4[0]
-#define g4y g4[1]
-#define g4z g4[2]
+#define g4x g4.x
+#define g4y g4.y
+#define g4z g4.z
 
-#define g5x g5[0]
-#define g5y g5[1]
-#define g5z g5[2]
+#define g5x g5.x
+#define g5y g5.y
+#define g5z g5.z
 
-#define g6x g6[0]
-#define g6y g6[1]
-#define g6z g6[2]
+#define g6x g6.x
+#define g6y g6.y
+#define g6z g6.z
 
-#define g7x g7[0]
-#define g7y g7[1]
-#define g7z g7[2]
+#define g7x g7.x
+#define g7y g7.y
+#define g7z g7.z
 
-#define g8x g8[0]
-#define g8y g8[1]
-#define g8z g8[2]
+#define g8x g8.x
+#define g8y g8.y
+#define g8z g8.z
 
   return ((((wm1*g6z+g6x*u+vm1*g6y)*(2*w-3)*w2-(g2x*u+g2z*w+(v
         -1)*g2y)*(2*w+1)*wm12)*(2*v-3)*v2-((g5x*u+g5y*v+wm1*
@@ -538,8 +539,9 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
         1)*um12+1+(((vm1*g3y+g3z*w+um1*g3x)*(2*w+1)*wm12-(
         vm1*g7y+wm1*g7z+um1*g7x)*(2*w-3)*w2)*(2*v-3)*v2+(((w
         -1)*g8z+g8y*v+um1*g8x)*(2*w-3)*w2-(g4y*v+g4z*w+um1*g4x)*
-        (2*w+1)*wm12)*(2*v+1)*vm12)*(2*u-3)*u2)*0.5;
+        (2*w+1)*wm12)*(2*v+1)*vm12)*(2*u-3)*u2)*0.5 - 0.5;
 //*/
+#endif
 }
 
 EXPORT floatf pnoise13_dv(floatf dv[3], floatf u, floatf v, floatf w, floatf fu, floatf fv, floatf fz, floatf sz, int thread) {

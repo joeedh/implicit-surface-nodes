@@ -1,4 +1,10 @@
-import bpy, struct, os, os.path, sys, time, random
+import bpy
+import struct
+import os
+import os.path
+import sys
+import time
+import random
 from ctypes import *
 from math import *
 from . import config
@@ -7,8 +13,7 @@ from mathutils import *
 
 from . import codegen
 
-OpEnum = [
-  'PUSH', #args: register to push onto stack
+OpEnum = ['PUSH', #args: register to push onto stack
   'POP',  #args: register to pop stack value onto
   'CONST_TO_REG',
   'CONST_TO_STK',
@@ -29,23 +34,18 @@ OpEnum = [
   'POW',    #args: [register a, register out]
   'FUNC_CALL', #args: [func name id]
   'PUSH_GLOBAL',
-  'LOAD_GLOBAL'
-];
+  'LOAD_GLOBAL']
   
-class FuncTableItem (Structure):
-  _fields_  = [
-    ("functionptr", c_voidp),
+class FuncTableItem(Structure):
+  _fields_ = [("functionptr", c_voidp),
     ("name", c_char_p),
-    ("totarg", c_int)
-  ]
+    ("totarg", c_int)]
 
-class SMOpCode (Structure):
-  _fields_  = [
-    ("code", c_short),
+class SMOpCode(Structure):
+  _fields_ = [("code", c_short),
     ("arg1", c_short),
     ("arg2", c_short),
-    ("arg3", c_short)
-  ]
+    ("arg3", c_short)]
 
 _lib = None
 def open_library():
@@ -55,7 +55,6 @@ def open_library():
     print("c library already opened")
     return
   
- 
   path = config.libsurface_path
   path = os.path.abspath(os.path.normpath(path))
   dir = os.path.split(path)[0]
@@ -72,22 +71,22 @@ def open_library():
   _lib = windll.LoadLibrary(path)
 
   #if _lib == None:
-  #    _lib = cdll.LoadLibrary(r'C:\dev\level_game\blender\ccode\libsurface.so')
+  #    _lib =
+  #    cdll.LoadLibrary(r'C:\dev\level_game\blender\ccode\libsurface.so')
   
   _lib.sm_get_functable.restype = POINTER(FuncTableItem)
-  _lib.sm_new.restype = POINTER(c_long);
-  _lib.sm_get_stackitem.restype = c_float;
+  _lib.sm_new.restype = c_voidp
+  _lib.sm_get_stackitem.restype = c_float
 
-  _lib.sg_new.restype = c_voidp;
-  _lib.so_create_mesh.restype = c_voidp;
-  _lib.so_create_object.restype = c_voidp;
-  _lib.so_get_stackmachine.restype = c_voidp;
+  _lib.sg_new.restype = c_voidp
+  _lib.so_create_mesh.restype = c_voidp
+  _lib.so_create_object.restype = c_voidp
+  _lib.so_get_stackmachine.restype = c_voidp
 
   _lib.sg_sample.restype = c_float
 
   #_lib.sm_run.restype = c_float;
-  
-open_library()
+  #open_library()
 
 def close_library():
     global _lib
@@ -152,7 +151,7 @@ class StackMachine:
       val = _lib.sm_get_stackitem(self.sm, c_int(i))
       ret.append(val)
       
-    return ret;
+    return ret
     
   def run(self, globals):
     global _lib
@@ -161,7 +160,7 @@ class StackMachine:
     for i, g in enumerate(globals):
       _lib.sm_set_global(self.sm, c_int(i), c_float(g))
     
-    _lib.sm_set_stackcur(self.sm, c_int(len(globals)+3)) #add safety buffer around globals
+    _lib.sm_set_stackcur(self.sm, c_int(len(globals) + 3)) #add safety buffer around globals
     return _lib.sm_run(self.sm, self.opcodes, c_int(self.oplen))
     
 def create_stackmachine(opcodes, consts, sm=None):
@@ -171,13 +170,15 @@ def create_stackmachine(opcodes, consts, sm=None):
   
   #SMOpCode
   if sm is None:
-    sm = _lib.sm_new();
+    sm = c_voidp(_lib.sm_new())
 
   for f in consts:
     #print(f, sm)
+    print(f)
+    print(sm)
     _lib.sm_add_constant(sm, c_float(f))
   
-  codes = (SMOpCode*len(opcodes))()
+  codes = (SMOpCode * len(opcodes))()
   for i, op in enumerate(opcodes):
     if op[0] == "FUNC_CALL" and op[1] not in funcmap:
       raise RuntimeError("ERROR: C runtime lacks standard function " + op[1])
@@ -193,179 +194,182 @@ def create_stackmachine(opcodes, consts, sm=None):
     c.arg2 = op[2]
     c.arg3 = op[3]
   
-  _lib.sm_add_opcodes(c_voidp(sm), codes, c_int(len(codes)))
+  print(sm)
+  _lib.sm_add_opcodes(sm, codes, c_int(len(codes)))
   
   return StackMachine(sm, codes)
   
 class SceneObject:
-	def __init__(self, blenderob, handle=None):
-		self.handle = handle
-		self.mesh = None
-		self.ob = blenderob;
+  def __init__(self, blenderob, handle=None):
+    self.handle = handle
+    self.mesh = None
+    self.ob = blenderob
 
-	def __del__(self):
-		if self.handle is not None:
-			_lib.so_free_object(c_voidp(self.handle))
-			self.handle = None
+  def __del__(self):
+    if self.handle is not None:
+      _lib.so_free_object(c_voidp(self.handle))
+      self.handle = None
 
-	def free(self):
-		if self.handle is not None:
-			_lib.so_free_object(c_voidp(self.handle))
-			self.handle = None
+  def free(self):
+    if self.handle is not None:
+      _lib.so_free_object(c_voidp(self.handle))
+      self.handle = None
 
-	def genOpCodes(self):
-		if self.handle is None:
-			print("error! genOpCodes() called on zombie object!")
-			return
+  def genOpCodes(self):
+    if self.handle is None:
+      print("error! genOpCodes() called on zombie object!")
+      return
 
-		ob = self.ob
+    ob = self.ob
 
-		ntree = ob.implicit.node_tree
-		if ntree not in bpy.data.node_groups.keys(): return
-		ntree = bpy.data.node_groups[ntree]
+    ntree = ob.implicit.node_tree
+    if ntree not in bpy.data.node_groups.keys(): return
+    ntree = bpy.data.node_groups[ntree]
 
-		cgen = codegen.CodeGen(ntree)
-		cgen.sort()
+    cgen = codegen.CodeGen(ntree)
+    cgen.sort()
 
-		r = cgen.gen()
-		if type(r) == list and len(r) > 0:
-			r = r[0]
+    r = cgen.gen()
+    if type(r) == list and len(r) > 0:
+      r = r[0]
 
-		if type(r) == list:
-			return #no code
-		
-		r = r.factor()
+    if type(r) == list:
+      return #no code
+    
+    r = r.factor()
 
-		opcodes, constmap = r.gen_opcodes(["_px", "_py", "_pz", "_field"]);
-		sm = _lib.so_get_stackmachine(c_voidp(self.handle))
+    opcodes, constmap = r.gen_opcodes(["_px", "_py", "_pz", "_field"])
+    sm = c_voidp(_lib.so_get_stackmachine(c_voidp(self.handle)))
 
-		print(opcodes, constmap)
-		create_stackmachine(opcodes, constmap, sm)
+    print(opcodes, constmap)
+    create_stackmachine(opcodes, constmap, sm)
 
 class SceneMesh:
-	def __init__(self, handle=None):
-		self.handle = handle
+  def __init__(self, handle=None):
+    self.handle = handle
 
-	def __del__(self):
-		if self.handle is not None:
-			#_lib.so_free_mesh(c_voidp(self.handle))
-			self.handle = None
+  def __del__(self):
+    if self.handle is not None:
+      #_lib.so_free_mesh(c_voidp(self.handle))
+      self.handle = None
 
-	def free(self):
-		if self.handle is not None:
-			_lib.so_free_mesh(c_voidp(self.handle))
-			self.handle = None
+  def free(self):
+    if self.handle is not None:
+      _lib.so_free_mesh(c_voidp(self.handle))
+      self.handle = None
 
 class SceneGraph:
-	def __init__(self):
-		self.handle = _lib.sg_new();
-		self.objects = []
-		self.meshes = []
-		self.meshmap = {}
-		self.objectmap = {}
+  def __init__(self):
+    self.handle = _lib.sg_new()
+    self.objects = []
+    self.meshes = []
+    self.meshmap = {}
+    self.objectmap = {}
 
-	def __del__(self):
-		if self.handle is not None:
-			_lib.sg_free(c_voidp(self.handle));
-			self.handle = None
-		
-	def free(self):
-		if self.handle is not None:
-			_lib.sg_free(c_voidp(self.handle))
-			self.handle = None
-	
-	def test(self, x=0, y=0, z=0):
-		co = (c_float*3)()
-		co[0] = x
-		co[1] = y
-		co[2] = z
+  def __del__(self):
+    import lg.c_code
+    if self.handle is not None:
+      lg.c_code._lib.sg_free(c_voidp(self.handle))
+      self.handle = None
+    
+  def free(self):
+    global _lib
+    import lg, lg.c_code
 
-		f = _lib.sg_sample(c_voidp(self.handle), co)
+    if self.handle is not None:
+      #_lib.sg_free(c_voidp(self.handle))
+      lg.c_code._lib.sg_free(c_voidp(self.handle))
+      self.handle = None
+  
+  def test(self, x=0, y=0, z=0):
+    co = (c_float * 3)()
+    co[0] = x
+    co[1] = y
+    co[2] = z
 
-		print("TEST result:", f);
+    f = _lib.sg_sample(c_voidp(self.handle), co)
 
-	def initFromScene(self, scene):
-		print("Creating implicit scene. . .")
-		obs = []
-		meshes = []
-		meshset = set()
+    print("TEST result:", f)
 
-		def ob_visible(ob):
-			if ob.hide: return False
+  def initFromScene(self, scene):
+    print("Creating implicit scene. . .")
+    obs = []
+    meshes = []
+    meshset = set()
 
-			for i in range(len(ob.layers)):
-				if ob.layers[i] and scene.layers[i]:
-					return True
-			return False
+    def ob_visible(ob):
+      if ob.hide_get(): return False
+      return True
 
-		for ob in scene.objects:
-			if ob.name.startswith("__"): continue
-			if ob.type != "MESH": continue
+    for ob in scene.objects:
+      if ob.name.startswith("__"): continue
+      if ob.type != "MESH": continue
 
-			if not ob_visible(ob):
-				continue
+      if not ob_visible(ob):
+        continue
 
-			obs.append(ob)
-			if ob.data.name not in meshset:
-				meshes.append(ob.data)
-				meshset.add(ob.data.name)
+      obs.append(ob)
+      if ob.data.name not in meshset:
+        meshes.append(ob.data)
+        meshset.add(ob.data.name)
 
-		print(obs, meshes)
+    print(obs, meshes)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    for ob in obs:
+      bm = bmesh.new()
+      bm.from_object(ob, depsgraph)
+      tris = bm.calc_loop_triangles()
 
-		for ob in obs:
-			bm = bmesh.new()
-			bm.from_object(ob, scene)
-			tris = bm.calc_tessface()
+      verts = (c_float * (len(bm.verts) * 3))()
+      outtris = (c_int * (len(tris) * 3))()
 
-			verts = (c_float * (len(bm.verts) * 3))()
-			outtris = (c_int * (len(tris) * 3))()
+      i = 0
+      for v in bm.verts:
+        verts[i] = v.co[0]
+        verts[i + 1] = v.co[1]
+        verts[i + 2] = v.co[2]
+        i += 3
+      
+      bm.verts.index_update()
+      i = 0
+      for tri in tris:
+        outtris[i] = tri[0].vert.index
+        outtris[i + 1] = tri[1].vert.index
+        outtris[i + 2] = tri[2].vert.index
+        i += 3
 
-			i = 0
-			for v in bm.verts:
-				verts[i] = v.co[0]
-				verts[i+1] = v.co[1]
-				verts[i+2] = v.co[2]
-				i += 3
-			
-			bm.verts.index_update()
-			i = 0
-			for tri in tris:
-				outtris[i] = tri[0].vert.index
-				outtris[i+1] = tri[1].vert.index
-				outtris[i+2] = tri[2].vert.index
-				i += 3
+      m = _lib.so_create_mesh(ob.data.name, len(tris), len(bm.verts), 0, verts, outtris, None, None)
 
-			m = _lib.so_create_mesh(ob.data.name, len(tris), len(bm.verts), 0, verts, outtris, None, None);
+      m = SceneMesh(m)
+      self.meshes.append(m)
 
-			m = SceneMesh(m)
-			self.meshes.append(m)
+      #MYEXPORT SceneObject *so_create_object(char name[32], SceneMesh *mesh,
+      #float *co, float *rot, float *scale, float *matrix, int mode) {
+      co = (c_float * 3)()
+      rot = (c_float * 3)()
+      scale = (c_float * 3)()
+      matrix = (c_float * 16)()
 
-			#MYEXPORT SceneObject *so_create_object(char name[32], SceneMesh *mesh, float *co, float *rot, float *scale, float *matrix, int mode) {
-			co = (c_float * 3)()
-			rot = (c_float*3)()
-			scale = (c_float*3)()
-			matrix = (c_float*16)()
+      for i in range(3):
+        co[i] = ob.location[i]
+        rot[i] = ob.rotation_euler[i]
+        scale[i] = ob.scale[i]
 
-			for i in range(3):
-				co[i] = ob.location[i]
-				rot[i] = ob.rotation_euler[i]
-				scale[i] = ob.scale[i]
+      mat = ob.matrix_world
 
-			mat = ob.matrix_world
+      for i in range(4):
+        for j in range(4):
+          matrix[j * 4 + i] = mat[i][j]
 
-			for i in range(4):
-				for j in range(4):
-					matrix[j*4+i] = mat[i][j];
+      mode = ob.implicit.blend_mode
+      mode = 1 if mode == 'POSITIVE' else 0
 
-			mode = ob.implicit.blend_mode
-			mode = 1 if mode == 'POSITIVE' else 0
+      sob = _lib.so_create_object(ob.name, c_voidp(m.handle), co, rot, scale, matrix, c_int(mode))
+      sob = SceneObject(ob, sob)
+      sob.genOpCodes()
 
-			sob = _lib.so_create_object(ob.name, c_voidp(m.handle), co, rot, scale, matrix, c_int(mode));
-			sob = SceneObject(ob, sob)
-			sob.genOpCodes()
+      self.objects.append(sob)
+      self.objectmap[ob.name] = sob
 
-			self.objects.append(sob)
-			self.objectmap[ob.name] = sob
-
-			_lib.sg_add_object(c_voidp(self.handle), c_voidp(sob.handle), mode);
+      _lib.sg_add_object(c_voidp(self.handle), c_voidp(sob.handle), mode)
 

@@ -12,7 +12,7 @@ class PhysicButtonsPanel:
     @classmethod
     def poll(cls, context):
         rd = context.scene.render
-        return (context.object) and (not rd.use_game_engine)
+        return context.object
 
 
 class PHYSICS_PT_implicit(PhysicButtonsPanel, Panel):

@@ -1,17 +1,58 @@
 import bpy, traceback
 
 from .utils import Registrar
+from . import globals
 
-jobs = []
 loop_running = False
+
+def add_timer(cb):
+  globals.timers.append(cb)
+  bpy.app.timers.register(cb)
+def rem_timer(cb):
+  bpy.app.timers.unregister(cb)
+  globals.timers.remove(cb)
+
+def clear_timers():
+  for t in globals.timers[:]:
+    try:
+      globals.timers.remove(t)
+    except:
+      traceback.print_exc()
 
 def add_job(job):
   #job.__next__()
-  jobs.append(job)
+  globals.jobs.append(job)
 
 def kill_job(job):
-  jobs.remove(job)
+  globals.jobs.remove(job)
+
+def do_jobs():
+  jobs = globals.jobs
+  context = bpy.context
+
+  for job in jobs[:]:
+    try:
+      job.send(context)
+    except TypeError:
+      print("first run of job?")
+      job.__next__() #generator was just started?
+    except StopIteration:
+      jobs.remove(job)
+    except:
+      traceback.print_exc()
+      jobs.remove(job)
   
+  return 0.05
+
+def clear_jobs():
+  globals.jobs[:] = []
+
+clear_timers()
+clear_jobs()
+
+def start_events():
+  add_timer(do_jobs)
+
 class ModalTimerOperator(bpy.types.Operator):
     """Operator which runs its self from a timer"""
     bl_idname = "wm.implicit_event_loop"
@@ -64,5 +105,5 @@ class ModalTimerOperator(bpy.types.Operator):
         return {'CANCELLED'}
 
 bpy_exports = Registrar([
-  ModalTimerOperator
+#  ModalTimerOperator
 ]);

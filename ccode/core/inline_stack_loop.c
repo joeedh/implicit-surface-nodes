@@ -51,13 +51,13 @@ floatf sm_run_inline(StackMachine *sm, SMOpCode *codes, int codelen) {
       case PUSH_GLOBAL:
       {
         int loc = curcode->arg1 | curcode->arg2<<16;
-        sm->stack[sm->stackcur++] = sm->stack[loc];
+        sm->stack[sm->stackcur++] = sm->globals[loc];
         break;
       }
       case LOAD_GLOBAL:
       {
         int loc = curcode->arg1 | curcode->arg2<<16;
-        sm->stack[sm->stackcur-1] = sm->stack[loc];
+        sm->stack[sm->stackcur-1] = sm->globals[loc];
         break;
       }
       case REG_TO_STK: //args: location in stack, register to load into stack

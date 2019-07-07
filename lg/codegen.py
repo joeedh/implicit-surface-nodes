@@ -110,8 +110,11 @@ class CodeGen:
         id = sid(sock)
         outmap[id] = expr[sock.name]
     
+    nodes = self.nodes[:]
+    nodes.reverse()
+
     if not instance_mode:
-      for n in self.nodes:
+      for n in nodes:
         #field
         if n.bl_idname == "ImplicitOutputNode" and len(n.inputs[0].links) > 0:
           sock = n.inputs[0].links[0].from_socket
@@ -128,7 +131,7 @@ class CodeGen:
         elif n.bl_idname == "ImplicitOutputNode":
           rets.append([sym(val) for val in n.inputs[1].value])
     else:
-      for n in self.nodes:
+      for n in nodes:
         if n.bl_idname == "NodeGroupOutput":
           for i in n.inputs:
             if i.name == "": #phanton node thingy

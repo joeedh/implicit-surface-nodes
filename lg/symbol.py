@@ -315,6 +315,7 @@ class sym (list):
         
       elif n.name != None:
         if n.name not in globals:
+          print(globals)
           raise RuntimeError("Unknown global " + n.name)
         
         loc = globals.index(n.name);

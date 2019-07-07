@@ -84,6 +84,7 @@ typedef struct FuncTable {
 
 typedef struct StackMachine {
   floatf stack[MAXSTACK] MYALIGNED(32);
+  floatf globals[128] MYALIGNED(32);
   floatf *registers;
   floatf constants[MAXCONST] MYALIGNED(32);
   
@@ -98,7 +99,7 @@ typedef struct StackMachine {
   int stackcur;
   FuncTable *func_table;
 
-  int totfunc;
+  int totfunc, totglobal;
 } StackMachine;
 
 struct SpatialGraph;
@@ -116,6 +117,7 @@ MYEXPORT void sm_set_stackcur(StackMachine *sm, int stackcur);
 MYEXPORT void sm_set_global(StackMachine *sm, int stackpos, float value);
 MYEXPORT floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen);
 MYEXPORT floatf sm_get_stackitem(StackMachine *sm, int stackpos);
+MYEXPORT void sm_begin(StackMachine* sm); //basically, resets stack pointer
 
 MYEXPORT void sm_tessellate(struct SpatialGraph *sg, float **vertout, float **ao_out, int *totvert, int **triout, int *tottri,
                    float min[3], float max[3], int ocdepth, float matrix[4][4], 

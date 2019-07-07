@@ -4,8 +4,11 @@ def on_object_active(ctx, object):
   print("selected new active object", object.name)
   
   if object == None: return
+
+  #XXX not working, bpy.context.screen doesn't exist
+  return
+
   #find node editor window, if one exists
-  scr = bpy.context.window.screen
   node_editor = None
   
   for area in scr.areas:
@@ -35,7 +38,7 @@ last_active_scene = None
 
 def start_events():
   from . import event
-  bpy.ops.wm.implicit_event_loop()
+  event.start_events()
   
   def inf_job(cb):
     while 1:
@@ -48,8 +51,10 @@ def start_events():
     global last_active_scene
     
     scene = ctx.scene
-    obj = ctx.active_object
     
+    #obj = ctx.active_object
+    obj = ctx.view_layer.objects.active
+
     if last_active_scene == None or scene.name != last_active_scene.name:
       last_active_scene = scene
     if last_active_object == None or obj.name != last_active_object.name:

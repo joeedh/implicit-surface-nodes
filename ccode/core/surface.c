@@ -75,6 +75,7 @@ MYEXPORT StackMachine *sm_new() {
   
   sm->func_table = func_table;
   sm->totfunc = sizeof(func_table) / sizeof(*func_table);
+
   return sm;
 }
 
@@ -123,15 +124,23 @@ MYEXPORT void sm_set_stackcur(StackMachine *sm, int stackcur) {
   sm->stackcur = stackcur;
 }
 
+MYEXPORT void sm_begin(StackMachine* sm) {
+	sm->stackcur = 0;
+}
+
 MYEXPORT void sm_set_global(StackMachine *sm, int stackpos, float value) {
 #ifdef SIMD
-  sm->stack[stackpos][0] = value;
-  sm->stack[stackpos][1] = value;
-  sm->stack[stackpos][2] = value;
-  sm->stack[stackpos][3] = value;
+  sm->globals[stackpos][0] = value;
+  sm->globals[stackpos][1] = value;
+  sm->globals[stackpos][2] = value;
+  sm->globals[stackpos][3] = value;
 #else
-  sm->stack[stackpos] = value;
+  sm->globals[stackpos] = value;
 #endif
+
+  if (stackpos >= sm->totglobal) {
+	  sm->totglobal = stackpos + 1;
+  }
 }
 
 static StackMachine *sampler_machines[MAXTHREAD];
@@ -268,13 +277,13 @@ MYEXPORT floatf sm_run(StackMachine *sm, SMOpCode *codes, int codelen) {
       case PUSH_GLOBAL:
       {
         int loc = curcode->arg1 | curcode->arg2<<16;
-        sm->stack[sm->stackcur++] = sm->stack[loc];
+        sm->stack[sm->stackcur++] = sm->globals[loc];
         break;
       }
       case LOAD_GLOBAL:
       {
         int loc = curcode->arg1 | curcode->arg2<<16;
-        sm->stack[sm->stackcur-1] = sm->stack[loc];
+        sm->stack[sm->stackcur-1] = sm->globals[loc];
         break;
       }
       case REG_TO_STK: //args: location in stack, register to load into stack

@@ -105,7 +105,7 @@ MYEXPORT float sg_sample(SpatialGraph *sg, floatf p[3], int threadnr) {
 			sm_set_global(sm, 1, p[1]); //_py
 			sm_set_global(sm, 2, p[2]); //_pz
 			sm_set_global(sm, 3, field); //_field
-
+			
 			floatf f = sm_run_inline(sm, sm->codes, sm->totcode);
 
 			if (first) {

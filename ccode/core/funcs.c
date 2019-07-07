@@ -65,8 +65,9 @@ EXPORT void sm_isqrt(StackMachine *sm) {
 EXPORT void sm_sqrt(StackMachine *sm) {
   floatf f = SPOP(sm);
   
-  f = sqrt_approx(f);
-  
+  //f = sqrt_approx(f);
+  f = sqrt(f);
+
   SLOAD(sm, f);
 }
 

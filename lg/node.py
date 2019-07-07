@@ -54,7 +54,7 @@ class FieldCustomGroup (NodeCustomGroup):
     if self.node_tree == None:
       return
       
-    layout.label(self.node_tree.name)
+    layout.label(text=self.node_tree.name)
     
     layout.prop(self.node_tree, "name")
     
@@ -80,7 +80,7 @@ class FieldVectorSocket(NodeSocket):
     # Optional function for drawing the socket input vector
     def draw(self, context, layout, node, text):
         if self.is_output or self.is_linked:
-            layout.label(text)
+            layout.label(text=text)
         else:
             layout.prop(self, "value", text=self.name)
 
@@ -104,7 +104,7 @@ class FieldSocket(NodeSocket):
     # Optional function for drawing the socket input value
     def draw(self, context, layout, node, text):
         if self.is_output or self.is_linked:
-            layout.label(text)
+            layout.label(text=text)
         else:
             layout.prop(self, "value", text=self.name)
 
@@ -112,6 +112,29 @@ class FieldSocket(NodeSocket):
     def draw_color(self, context, node):
         return (1.0, 0.4, 0.216, 1.0)
 
+
+
+# Custom socket type
+class FloatSocket(NodeSocket):
+    # Description string
+    '''Implicit Field'''
+    # Optional identifier string. If not explicitly defined, the python class name is used.
+    bl_idname = 'ImplicitFloatSocket'
+    # Label for nice name display
+    bl_label = 'Float'
+
+    value      = bpy.props.FloatProperty(default=0.0)
+    
+    # Optional function for drawing the socket input value
+    def draw(self, context, layout, node, text):
+        if self.is_output or self.is_linked:
+            layout.label(text=text)
+        else:
+            layout.prop(self, "value", text=self.name)
+
+    # Socket color
+    def draw_color(self, context, node):
+        return (0.75, 0.75, 0.75, 1.0)
 
   
 from . import symbol
@@ -193,6 +216,52 @@ class math_func_impl:
     return sym.func('sqrt', [a[0]*a[0] + a[1]*a[1] + a[2]*a[2]])
       #"""({dva}[0]*{a}[0] + {dva}[1]*{a}[1] + {dva}[2]*{a}[2]) / 
       #     sqrt({a}[0]*{a}[0] + {a}[1]*{a}[1] + {a}[2]*{a}[2]")"""
+
+# Derived from the Node base type.
+class ImplicitVec3LengthNode(Node, ImplicitTree):
+    # === Basics ===
+    # Description string
+    '''A custom node'''
+    # Optional identifier string. If not explicitly defined, the python class name is used.
+    bl_idname = 'ImplicitVec3LengthNode'
+    # Label for nice name display
+    bl_label = 'Vector Length'
+    # Icon identifier
+    bl_icon = 'SOUND'
+    bl_width_min = 200
+
+    def init(self, context):
+        self.inputs.new('ImplicitVectorSocket', "vector")
+        self.outputs.new('ImplicitFloatSocket', "length")
+
+    def gen_code(self, codegen, ins):
+      def isvec(v):
+        return type(v) in [list, tuple]
+      
+      a = coerce(ins["vector"], "vec")
+
+      return {
+        "length" : sym.func('sqrt', [a[0]*a[0] + a[1]*a[1] + a[2]*a[2]])
+      }
+
+    # Copy function to initialize a copied node from an existing one.
+    def copy(self, node):
+        pass
+        #print("Copying from node ", node)
+
+    # Free function to clean up on removal.
+    def free(self):
+        pass
+
+    # Additional buttons displayed on the node.
+    def draw_buttons(self, context, layout):
+        pass
+
+    def draw_buttons_ext(self, context, layout):
+        pass
+
+    def draw_label(self):
+        return "Vector Length"
   
 # Derived from the Node base type.
 class MathNode(Node, ImplicitTree):
@@ -272,7 +341,7 @@ class MathNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
         layout.prop(self, "mathFunc")
         #layout.prop(self, "myFloatProperty")
 
@@ -358,7 +427,7 @@ class VectorMathNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
         layout.prop(self, "mathFunc")
 
     def draw_buttons_ext(self, context, layout):
@@ -427,7 +496,7 @@ class VectorReducNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
         layout.prop(self, "mathFunc")
 
     def draw_buttons_ext(self, context, layout):
@@ -579,7 +648,7 @@ class InputNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
     def draw_buttons_ext(self, context, layout):
         pass
     def draw_label(self):
@@ -617,7 +686,7 @@ class OutputNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
     def draw_buttons_ext(self, context, layout):
         pass
     def draw_label(self):
@@ -661,7 +730,7 @@ class NormalizeNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
     def draw_buttons_ext(self, context, layout):
         pass
     def draw_label(self):
@@ -786,7 +855,7 @@ class PerlinNode(Node, ImplicitTree):
 
     def init(self, context):
         self.inputs.new('ImplicitVectorSocket', "position")
-        self.inputs.new('ImplicitFieldSocket',  'size')
+        self.inputs.new('ImplicitFloatSocket',  'size')
         
         self.outputs.new('ImplicitFieldSocket', "value")
         
@@ -795,7 +864,7 @@ class PerlinNode(Node, ImplicitTree):
       sz = coerce(ins["size"], "field")
       
       return {
-        "value" : sym.func("perlin", [p[0]/sz, p[1]/sz, p[2]/sz])
+        "value" : sym.func("perlin", [p[0]*sz, p[1]*sz, p[2]*sz])
       } #do nothing
 
     def copy(self, node):
@@ -806,7 +875,8 @@ class PerlinNode(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
+
     def draw_buttons_ext(self, context, layout):
         pass
     def draw_label(self):
@@ -846,7 +916,7 @@ class Intersect(Node, ImplicitTree):
       if isvec(b):
         b = sym.func("sqrt", b[0]*b[0] + b[1]*b[1] + b[2]*b[2])
       
-      f = sym.func("min", [a, b])
+      f = sym.func("max", [a, b])
       
       return {
         "field" : f
@@ -857,7 +927,7 @@ class Intersect(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
         layout.prop(self, "smoothness")
         
     def draw_buttons_ext(self, context, layout):
@@ -888,8 +958,8 @@ class Union(Node, ImplicitTree):
         print("Copying from node ", node)
     
     def gen_code(self, codegen, ins):
-      a = coerce(ins["a"], 'field')
       b = coerce(ins["b"], 'field')
+      a = coerce(ins["a"], 'field')
       
       f = sym.func("min", [a*-1, b])
       
@@ -902,7 +972,7 @@ class Union(Node, ImplicitTree):
 
     # Additional buttons displayed on the node.
     def draw_buttons(self, context, layout):
-        layout.label("Node settings")
+        layout.label(text="Node settings")
         layout.prop(self, "smoothness")
         
     def draw_buttons_ext(self, context, layout):
@@ -914,6 +984,7 @@ bpy_exports = utils.Registrar([
   ImplicitTree,
   FieldSocket,
   FieldVectorSocket,
+  FloatSocket,
   MathNode,
   VectorMathNode,
   OutputNode,
@@ -927,6 +998,7 @@ bpy_exports = utils.Registrar([
   FieldDiffNode,
   NormalizeNode,
   PerlinNode,
+  ImplicitVec3LengthNode,
   RotateNode2D,
   VectorDotNode
 ]);

@@ -21,7 +21,8 @@ __all__ = [
   'fields',
   'appstate',
   'config',
-  'scene'
+  'scene',
+  "codegen_intel"
 ];
 
 import imp
@@ -30,7 +31,8 @@ from . import config
 imp.reload(config)
 
 from . import utils, sector, mesh, node_tree, ops, symbol, codegen, \
-              c_code, props, panel_ui, event, fields, appstate, generate, scene
+              c_code, props, panel_ui, event, fields, appstate, generate,\
+              scene, codegen_intel
 
 imp.reload(c_code)
 imp.reload(appstate)
@@ -50,6 +52,7 @@ imp.reload(c_code)
 imp.reload(symbol)
 imp.reload(utils)
 imp.reload(codegen)
+imp.reload(codegen_intel)
 
 imp.reload(props)
 imp.reload(node_tree)

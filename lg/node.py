@@ -406,7 +406,7 @@ class VectorMathNode(Node, ImplicitTree):
       if self.mathFunc not in ["DOT", "CROSS"]:
         for i in range(3):
           f.append(code(None, a[i], b[i], 0, 0));
-      elif elf.mathFunc == "DOT":
+      elif self.mathFunc == "DOT":
         for i in range(3):
           f.append(code(None, a, b, 0, 0));
       else:

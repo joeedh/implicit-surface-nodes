@@ -1,3 +1,4 @@
+#include "sm_perlin_data.h"
 #include "simd.h"
 #include "surface.h"
 #include "mesh.h"
@@ -13,6 +14,116 @@
 
 #include "inline.h"
 
+/*original (i.e. reference) ken perlin noise 
+* coherent noise function over 1, 2 or 3 dimensions */
+/* (copyright Ken Perlin) */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+
+#define B 0x100
+#define BM 0xff
+
+#define N 0x1000
+#define NP 12   /* 2^N */
+#define NM 0xfff
+
+static void init(void);
+
+#define s_curve(t) ( t * t * (3. - 2. * t) )
+
+#define lerp(t, a, b) ( (a) + t * ((b) - (a)) )
+
+#define setup(i,b0,b1,r0,r1)\
+	t = vec[i] + N;\
+	b0 = ((int)t) & BM;\
+	b1 = (b0+1) & BM;\
+	r0 = t - (int)t;\
+	r1 = r0 - 1.;
+
+INLINE float noise3(float vec[3])
+{
+	int bx0, bx1, by0, by1, bz0, bz1, b00, b10, b01, b11;
+	float rx0, rx1, ry0, ry1, rz0, rz1, *q, sy, sz, a, b, c, d, t, u, v;
+	register i, j;
+
+	setup(0, bx0, bx1, rx0, rx1);
+	setup(1, by0, by1, ry0, ry1);
+	setup(2, bz0, bz1, rz0, rz1);
+
+	i = p[ bx0 ];
+	j = p[ bx1 ];
+
+	b00 = p[ i + by0 ];
+	b10 = p[ j + by0 ];
+	b01 = p[ i + by1 ];
+	b11 = p[ j + by1 ];
+
+	t  = s_curve(rx0);
+	sy = s_curve(ry0);
+	sz = s_curve(rz0);
+
+#define at3(rx,ry,rz) ( rx * q[0] + ry * q[1] + rz * q[2] )
+
+	q = g3[ b00 + bz0 ] ; u = at3(rx0,ry0,rz0);
+	q = g3[ b10 + bz0 ] ; v = at3(rx1,ry0,rz0);
+	a = lerp(t, u, v);
+
+	q = g3[ b01 + bz0 ] ; u = at3(rx0,ry1,rz0);
+	q = g3[ b11 + bz0 ] ; v = at3(rx1,ry1,rz0);
+	b = lerp(t, u, v);
+
+	c = lerp(sy, a, b);
+
+	q = g3[ b00 + bz1 ] ; u = at3(rx0,ry0,rz1);
+	q = g3[ b10 + bz1 ] ; v = at3(rx1,ry0,rz1);
+	a = lerp(t, u, v);
+
+	q = g3[ b01 + bz1 ] ; u = at3(rx0,ry1,rz1);
+	q = g3[ b11 + bz1 ] ; v = at3(rx1,ry1,rz1);
+	b = lerp(t, u, v);
+
+	d = lerp(sy, a, b);
+
+	return lerp(sz, c, d);
+}
+
+EXPORT void sm_perlin(StackMachine* sm) {
+	floatf vec[3];
+
+	vec[0] = SPOP(sm);
+	vec[1] = SPOP(sm);
+	vec[2] = SPOP(sm);
+
+	floatf ret = noise3(vec);
+
+	SLOAD(sm, ret);
+}
+
+//XXX implement me properly!
+EXPORT void sm_perlin_dv(StackMachine* sm) {
+	floatf x = SPOP(sm);
+	floatf y = SPOP(sm);
+	floatf z = SPOP(sm);
+	floatf dx = SPOP(sm);
+	floatf dy = SPOP(sm);
+	floatf dz = SPOP(sm);
+
+	float a[3] = { x, y, z }, b[3] = { x + dx, y + dy, z + dz };
+	
+	floatf r1 = noise3(a);
+	floatf r2 = noise3(b);
+
+	floatf df = sqrt(dx * dx + dy * dy + dz * dz);
+	floatf f = (r2 - r1) / (0.0000001f+df);
+	//f = dv[0] * dx + dv[1] * dy + dv[2] * dz;
+
+	SLOAD(sm, f);
+}
+
+//where the heck did I get this code from?
+#if 0
 static float grads[][3] = {
   {
     0.5416718730792324,
@@ -338,6 +449,8 @@ static float grads[][3] = {
 
 #define GRAD_SIZE 64
 #define ABS(a) ((a) < 0 ? 0-(a) : (a))
+#define FABS(a) ((a) < 0.0f ? 0.0f-(a) : (a))
+#define DIMEN 220
 
 typedef struct _Vec3 {
   floatf x;
@@ -345,8 +458,15 @@ typedef struct _Vec3 {
   floatf z;
 } _Vec3;
 
+double grad(int hash, double x, double y, double z) {
+	int h = hash & 15;
+	double u = h < 8 ? x : y,
+		v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+	return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
 INLINE _Vec3 noisexyz(floatf x, floatf y, floatf z, int thread) {
-  intf idx = (intf)(220*220*220*(x*220*220 + y*220 + z));
+  intf idx = (intf)(DIMEN* DIMEN * DIMEN *(x* DIMEN * DIMEN + y* DIMEN + z));
   
   //idx *= -((idx>0)*2 - 1);
 #ifdef SIMD
@@ -367,7 +487,7 @@ INLINE _Vec3 noisexyz(floatf x, floatf y, floatf z, int thread) {
   idx[3] = idx[3] & (GRAD_SIZE-1);
 #else
   //idx *= (idx>0)*2-1;
-  idx = idx < 0.0 ? 0 - idx : idx;
+  idx = FABS(idx);
   idx = idx & (GRAD_SIZE-1);
 #endif
   //idx = idx & ((1<<30)-1);
@@ -413,14 +533,14 @@ INLINE _Vec3 noisexyz(floatf x, floatf y, floatf z, int thread) {
 
 EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, floatf fz, floatf sz, int thread) {
     _Vec3 g1 = noisexyz(fu, fv, fz, thread);
-    _Vec3 g2 = noisexyz(fu, fv+sz, fz, thread);
-    _Vec3 g3 = noisexyz(fu+sz, fv+sz, fz, thread);
-    _Vec3 g4 = noisexyz(fu+sz, fv, fz, thread);
+    _Vec3 g2 = noisexyz(fu, fv+1.0f, fz, thread);
+    _Vec3 g3 = noisexyz(fu+ 1.0f, fv+ 1.0f, fz, thread);
+    _Vec3 g4 = noisexyz(fu+ 1.0f, fv, fz, thread);
 
-    _Vec3 g5 = noisexyz(fu,    fv,    fz+sz, thread);
-    _Vec3 g6 = noisexyz(fu,    fv+sz, fz+sz, thread);
-    _Vec3 g7 = noisexyz(fu+sz, fv+sz, fz+sz, thread);
-    _Vec3 g8 = noisexyz(fu+sz, fv,    fz+sz, thread);
+    _Vec3 g5 = noisexyz(fu,    fv,    fz+ 1.0f, thread);
+    _Vec3 g6 = noisexyz(fu,    fv+ 1.0f, fz+ 1.0f, thread);
+    _Vec3 g7 = noisexyz(fu+ 1.0f, fv+ 1.0f, fz+ 1.0f, thread);
+    _Vec3 g8 = noisexyz(fu+ 1.0f, fv,    fz+ 1.0f, thread);
     
     floatf vm1 = v-1.0f, um1 = u-1.0f, wm1 = w-1.0f;
     floatf u3, v3, w3;
@@ -459,7 +579,12 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     */
     
     //*
-    c1 =   u*g1.x +   v*g1.y + w*g1.z;
+
+	wm1 = w - 1.0f;
+	um1 = u - 1.0f;
+	vm1 = v - 1.0f;
+	
+	c1 =   u*g1.x +   v*g1.y + w*g1.z;
     c2 =   u*g2.x + vm1*g2.y + w*g2.z;
     c3 = um1*g3.x + vm1*g3.y + w*g3.z;
     c4 = um1*g4.x +   v*g4.y + w*g4.z;
@@ -468,11 +593,7 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
     c6 =   u*g6.x + vm1*g6.y + wm1*g6.z;
     c7 = um1*g7.x + vm1*g7.y + wm1*g7.z;
     c8 = um1*g8.x +   v*g8.y + wm1*g8.z;
-    
-    wm1=w-1.0f;
-    um1=u-1.0f;
-    vm1=v-1.0f;
-    
+	
     wm12=wm1*wm1, w2=w*w, v2=v*v, u2=u*u, u3=u2*u, v3=v2*v, w3=w2*w, um12=um1*um1, vm12=vm1*vm1;
 #if 1
 
@@ -545,17 +666,17 @@ EXPORT floatf pnoise13(floatf u, floatf v, floatf w, floatf fu, floatf fv, float
 }
 
 EXPORT floatf pnoise13_dv(floatf dv[3], floatf u, floatf v, floatf w, floatf fu, floatf fv, floatf fz, floatf sz, int thread) {
-    _Vec3 g1 = noisexyz(fu*sz, fv*sz, fz*sz, thread);
-    _Vec3 g2 = noisexyz(fu*sz, (fv+1.0)*sz, fz*sz, thread);
-    _Vec3 g3 = noisexyz((fu+1.0)*sz, (fv+1.0)*sz, fz*sz, thread);
-    _Vec3 g4 = noisexyz((fu+1.0)*sz, fv*sz, fz*sz, thread);
+    _Vec3 g1 = noisexyz(fu, fv, fz, thread);
+    _Vec3 g2 = noisexyz(fu, (fv+1.0), fz, thread);
+    _Vec3 g3 = noisexyz((fu+1.0), (fv+1.0), fz, thread);
+    _Vec3 g4 = noisexyz((fu+1.0), fv, fz, thread);
 
     fz += 1.0f;
     
-    _Vec3 g5 = noisexyz(fu*sz, fv*sz, fz*sz, thread);
-    _Vec3 g6 = noisexyz(fu*sz, (fv+1.0)*sz, fz*sz, thread);
-    _Vec3 g7 = noisexyz((fu+1.0)*sz, (fv+1.0)*sz, fz*sz, thread);
-    _Vec3 g8 = noisexyz((fu+1.0)*sz, fv*sz, fz*sz, thread);
+    _Vec3 g5 = noisexyz(fu, fv, fz, thread);
+    _Vec3 g6 = noisexyz(fu, (fv+1.0), fz, thread);
+    _Vec3 g7 = noisexyz((fu+1.0), (fv+1.0), fz, thread);
+    _Vec3 g8 = noisexyz((fu+1.0), fv*sz, fz, thread);
 
     floatf u2=u*u, v2=v*v, w2=w*w;
 
@@ -621,19 +742,13 @@ EXPORT void sm_perlin(StackMachine *sm) {
   floatf x = SPOP(sm);
   floatf y = SPOP(sm);
   floatf z = SPOP(sm);
-  
-#ifdef SIMD
-  floatf sz={0.2f, 0.2f, 0.2f, 0.2f};
-#else
-  floatf sz = 0.2f;
-#endif
 
-  floatf u = x/sz, v = y/sz, w=z/sz, fu=fast_floor(u), fv=fast_floor(v), fw=fast_floor(w);
+  floatf u = x, v = y, w=z, fu=fast_floor(u), fv=fast_floor(v), fw=fast_floor(w);
   floatf f;
   
   u -= fu; v -= fv; w -= fw;
 
-  f = pnoise13(u, v, w, fu*sz, fv*sz, fw*sz, sz, sm->threadnr);
+  f = pnoise13(u, v, w, fu, fv, fw, 1.0, sm->threadnr);
   
   SLOAD(sm, f);
 }
@@ -647,21 +762,16 @@ EXPORT void sm_perlin_dv(StackMachine *sm) {
   floatf dz = SPOP(sm);
   floatf dv[3];
   
-#ifdef SIMD
-  floatf sz={0.2f, 0.2f, 0.2f, 0.2f};
-#else
-  floatf sz = 0.2f;
-#endif
-
-  floatf u = x/sz, v = y/sz, w=z/sz, fu=fast_floor(u), fv=fast_floor(v), fw=fast_floor(w);
+  floatf u = x, v = y, w=z, fu=fast_floor(u), fv=fast_floor(v), fw=fast_floor(w);
   floatf f;
   
   u -= fu; v -= fv; w -= fw;
 
-  pnoise13_dv(dv, u, v, w, fu*sz, fv*sz, fw*sz, sz, sm->threadnr);
-  VECMULF(dv, 1.0/sz);
+  pnoise13_dv(dv, u, v, w, fu, fv, fw, 1.0, sm->threadnr);
+  //VECMULF(dv, 1.0/sz);
   
   f = dv[0]*dx + dv[1]*dy + dv[2]*dz;
   
   SLOAD(sm, f);
 }
+#endif

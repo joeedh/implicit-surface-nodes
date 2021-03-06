@@ -124,7 +124,7 @@ MYEXPORT void sm_tessellate(struct SpatialGraph *sg, float **vertout, float **ao
                    int thread);
 MYEXPORT void sm_free_tess(float *vertout, int *triout);
 MYEXPORT void sm_set_sampler_machine(StackMachine *sm);
-MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread);
+MYEXPORT floatf sm_sampler(floatf x, floatf y, floatf z, int thread, void *userdata);
 
 //v4sf sm_sampler_v4sf(v4sf x, v4sf y, v4sf z, int thread);
 MYEXPORT void sm_print_stack(StackMachine *sm, int start, int end);

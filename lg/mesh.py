@@ -56,8 +56,8 @@ def surfmesh(expr, outobj, outmatrix=None, use_local=False, min1=None, max1=None
     #raise "sdf"
     #"""
   else:
-    min1 = outmatrix @ min1
-    max1 = outmatrix @ max1
+    min1 = outmatrix @ Vector(min1)
+    max1 = outmatrix @ Vector(max1)
     
     for i in range(len(rs)):
       rs[i] = outobj.matrix_world @ rs[i]
@@ -141,7 +141,7 @@ def surfmesh(expr, outobj, outmatrix=None, use_local=False, min1=None, max1=None
   sg = scene.thescene.handle
 
   _lib.sm_tessellate(c_voidp(sg), byref(verts), byref(ao_out), byref(totvert), byref(tris), byref(tottri), 
-                     min1, max1, c_int(5), mat, c_int(0));
+                     min1, max1, c_int(7), mat, c_int(0));
   
   #return#XXX
   

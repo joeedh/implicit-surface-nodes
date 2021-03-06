@@ -12,6 +12,7 @@
 #define TRUNC(f) ((float)((int)(f)))
 
 INLINE floatf fast_floor(floatf f) {
+//	return floor(f);
   floatf f2 = f;
   //floatf r = {
   //  floor(f[0]),
